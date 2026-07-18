@@ -17,6 +17,11 @@ resources:
     type: module
 ```
 
+HACS installs a versioned release. The release asset is a single, self-contained
+`ha-poolsensor.js` file: it includes the translations and does not require a
+separate `translations.js` file. The default branch is deliberately not offered
+for installation because it contains the unbundled development sources.
+
 ### Manual installation
 
 Download `ha-poolsensor.js` from the chosen [release](../../releases), copy it to `config/www/`, then add `/local/ha-poolsensor.js` as a `module` resource.
@@ -67,6 +72,119 @@ entities:
 ```
 
 For pH and free chlorine, create separate statistics graphs because they use different units and practical scales. Development dependencies are defined in `package.json`; run `npm ci && npm run build` after changing the authored source files in the repository root to create a local `dist/ha-poolsensor.js`.
+
+### Graphable pH and free-chlorine helpers
+
+If the source entities do not expose long-term statistics, mirror them with modern template sensors that explicitly declare `state_class: measurement`. Add the following under `template:` in `configuration.yaml`, replacing the source entity IDs if necessary, then restart Home Assistant or reload template entities.
+
+```yaml
+template:
+  - sensor:
+      - name: Pool pH graph
+        unique_id: pool_ph_graph
+        unit_of_measurement: pH
+        state_class: measurement
+        availability: "{{ is_number(states('sensor.pool_ph')) }}"
+        state: "{{ states('sensor.pool_ph') | float }}"
+
+      - name: Pool free chlorine graph
+        unique_id: pool_free_chlorine_graph
+        unit_of_measurement: mg/L
+        state_class: measurement
+        availability: "{{ is_number(states('sensor.pool_cl')) }}"
+        state: "{{ states('sensor.pool_cl') | float }}"
+```
+
+Use `sensor.pool_ph_graph` and `sensor.pool_free_chlorine_graph` in the statistics graphs. Statistics begin collecting after these helper entities are created; they do not backfill historical data.
+
+### HACS graph alternatives
+
+Install either **Mini Graph Card** or **ApexCharts Card** from HACS before using the corresponding example. Both examples use 20-minute median buckets over the last 24 hours, so they are directly comparable.
+
+#### Mini Graph Card
+
+This is the more compact option, suited to a mobile dashboard.
+
+```yaml
+type: custom:mini-graph-card
+name: Pool temperatures
+hours_to_show: 24
+points_per_hour: 3
+aggregate_func: median
+group_by: interval
+line_width: 2
+height: 130
+show:
+  icon: false
+  state: false
+  fill: false
+  points: false
+  labels: hover
+  legend: true
+entities:
+  - entity: sensor.pool_temperature
+    name: Water
+    color: var(--primary-color)
+  - entity: sensor.outdoor_temperature
+    name: Ambient
+    color: var(--secondary-text-color)
+```
+
+#### ApexCharts Card
+
+This option is better when you want pH and free chlorine in one chart with their own axes and a richer touch tooltip.
+
+```yaml
+type: custom:apexcharts-card
+header:
+  show: true
+  title: Pool water quality
+graph_span: 24h
+update_interval: 5min
+all_series_config:
+  type: line
+  curve: smooth
+  stroke_width: 2
+  group_by:
+    func: median
+    duration: 20min
+    fill: last
+yaxis:
+  - id: ph
+    min: 6
+    max: 9
+    decimals: 2
+  - id: chlorine
+    opposite: true
+    min: 0
+    max: 3
+    decimals: 2
+apex_config:
+  chart:
+    height: 220
+    toolbar:
+      show: false
+  legend:
+    position: bottom
+  tooltip:
+    shared: true
+    intersect: false
+series:
+  - entity: sensor.pool_ph
+    name: pH
+    yaxis_id: ph
+    color: var(--info-color)
+    show:
+      extremas: true
+  - entity: sensor.pool_cl
+    name: Free chlorine
+    yaxis_id: chlorine
+    color: var(--warning-color)
+    show:
+      extremas: true
+```
+
+ApexCharts Card can show min/max values in the header (`show.extremas`), but its standard Home Assistant entity-series configuration cannot create a true shaded min–max envelope. Mini Graph Card likewise has no min/max band feature. For the median/mean line with a genuine min/max band, use the native `statistics-graph` example above with `stat_types: [min, max, mean]`.
 
 ### Renovate
 
