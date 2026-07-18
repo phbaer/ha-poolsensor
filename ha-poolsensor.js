@@ -2,10 +2,11 @@ import { TRANSLATIONS, LANGUAGE_OPTIONS, translate } from './translations.js';
 
 const MEASUREMENTS = ['ph', 'free_chlorine', 'orp', 'temperature', 'salinity', 'tds', 'ec'];
 const EQUIPMENT = [
-  { key: 'filter', powerKey: 'filter_power' },
-  { key: 'heating', powerKey: 'heating_power' },
+  { key: 'filter', powerKey: 'filter_power', icon: 'mdi:filter' },
+  { key: 'heating', powerKey: 'heating_power', icon: 'mdi:radiator' },
 ];
 const EDITOR_FIELDS = ['title', 'language', ...MEASUREMENTS, ...EQUIPMENT.flatMap(({ key, powerKey }) => [key, powerKey])];
+const QUALITY_LABELS = { en: 'Quality', de: 'Qualität', fr: 'Qualité', it: 'Qualità', es: 'Calidad' };
 
 
 // The default pH/free-chlorine pair follows German public-pool guidance.
@@ -86,6 +87,7 @@ class PoolWaterQualityCard extends HTMLElement {
     style.textContent = `
       .card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px 4px; }
       .card-title { color: var(--primary-text-color); font-size: 1.1em; font-weight: 500; }
+      .header-actions, .equipment-badges { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
       .pool-values { display: grid; gap: 0; padding: 0 14px 8px; }
       .pool-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4px 8px; padding: 5px 0; border-bottom: 1px solid var(--divider-color); }
       .pool-row:last-child { border-bottom: none; }
@@ -96,23 +98,12 @@ class PoolWaterQualityCard extends HTMLElement {
       .status-ok { background: var(--success-color); }
       .status-warning { background: var(--warning-color); }
       .status-unknown { background: var(--disabled-text-color); }
-      .grade { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; box-sizing: border-box; width: 26px; height: 26px; padding: 0; border-radius: 50%; color: var(--text-primary-color); font-size: .95em; font-weight: 700; line-height: 1; cursor: help; }
-      .grade-a { background: var(--success-color); }
-      .grade-b { background: color-mix(in srgb, var(--success-color) 65%, var(--warning-color)); }
-      .grade-c, .grade-d { background: var(--warning-color); }
-      .grade-f { background: var(--error-color); }
-      .grade-unknown { background: var(--disabled-text-color); }
-      .range-meter { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; }
-      .range-track { position: relative; height: 6px; border-radius: 99px; background: linear-gradient(to right, color-mix(in srgb, var(--error-color) 46%, transparent) 0%, color-mix(in srgb, var(--error-color) 34%, var(--success-color)) var(--good-start), color-mix(in srgb, var(--success-color) 38%, transparent) 50%, color-mix(in srgb, var(--error-color) 34%, var(--success-color)) var(--good-end), color-mix(in srgb, var(--error-color) 46%, transparent) 100%); }
+      hui-entity-badge { --ha-badge-icon-size: 18px; --ha-badge-font-size: 0.85em; cursor: help; }
+      .range-meter { grid-column: 1 / -1; display: block; }
+      .range-track { position: relative; width: 100%; height: 6px; border-radius: 99px; background: linear-gradient(to right, color-mix(in srgb, var(--error-color) 46%, transparent) 0%, color-mix(in srgb, var(--error-color) 34%, var(--success-color)) var(--good-start), color-mix(in srgb, var(--success-color) 38%, transparent) 50%, color-mix(in srgb, var(--error-color) 34%, var(--success-color)) var(--good-end), color-mix(in srgb, var(--error-color) 46%, transparent) 100%); }
       .range-marker { position: absolute; top: 50%; left: var(--marker-position); width: 10px; height: 10px; border: 2px solid var(--card-background-color); border-radius: 50%; background: var(--primary-text-color); box-sizing: border-box; transform: translate(-50%, -50%); }
-      .range-label { color: var(--secondary-text-color); font-size: 0.78em; white-space: nowrap; }
+      .range-label { display: block; margin-top: 2px; color: var(--secondary-text-color); font-size: 0.78em; text-align: right; }
       .overall-guidance { margin: 0 14px 8px; font-size: 0.86em; line-height: 1.3; color: var(--secondary-text-color); padding: 5px 7px; border-left: 3px solid var(--warning-color); background: color-mix(in srgb, var(--warning-color) 10%, transparent); }
-      .equipment { display: grid; gap: 0; padding: 4px 14px 8px; border-top: 1px solid var(--divider-color); }
-      .equipment-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; padding: 4px 0; font-size: 0.9em; }
-      .equipment-state { font-weight: 500; }
-      .equipment-on { color: var(--success-color); }
-      .equipment-off { color: var(--secondary-text-color); }
-      .equipment-power { color: var(--secondary-text-color); font-variant-numeric: tabular-nums; }
     `;
 
     const content = document.createElement('div');
@@ -167,23 +158,28 @@ class PoolWaterQualityCard extends HTMLElement {
     title.textContent = this.config.title;
     header.appendChild(title);
 
+    const actions = document.createElement('div');
+    actions.className = 'header-actions';
+    const equipmentChips = this._createEquipmentChips();
+    if (equipmentChips) {
+      actions.appendChild(equipmentChips);
+    }
+
     if (this.config.grading.enabled) {
       const grade = this._getGrade();
-      const badge = document.createElement('span');
-      badge.className = `grade grade-${grade.value === '—' ? 'unknown' : grade.value.toLowerCase()}`;
-      badge.textContent = grade.value;
-      badge.title = `${grade.value}: ${grade.reason}`;
-      badge.setAttribute('aria-label', badge.title);
-      header.appendChild(badge);
+      actions.appendChild(this._createEntityBadge({
+        id: 'sensor.poolsensor_water_quality',
+        label: QUALITY_LABELS[this.config.language] || QUALITY_LABELS.en,
+        value: grade.value,
+        icon: 'mdi:flask',
+        color: this._getGradeColor(grade.value),
+        tooltip: `${grade.value}: ${grade.reason}`,
+      }));
     }
 
+    header.appendChild(actions);
     card.appendChild(header);
     card.appendChild(content);
-
-    const equipment = this._createEquipmentSection();
-    if (equipment) {
-      card.appendChild(equipment);
-    }
 
     const overallGuidance = this._getOverallGuidance();
     if (overallGuidance) {
@@ -217,46 +213,103 @@ class PoolWaterQualityCard extends HTMLElement {
     return unit ? `${value} ${unit}` : value;
   }
 
-  _createEquipmentSection() {
+  _createEquipmentChips() {
     const configured = EQUIPMENT.filter(({ key, powerKey }) => this.config[key] || this.config[powerKey]);
     if (!configured.length) {
       return null;
     }
 
-    const section = document.createElement('div');
-    section.className = 'equipment';
-    configured.forEach(({ key, powerKey }) => {
-      const row = document.createElement('div');
-      row.className = 'equipment-row';
-
-      const label = document.createElement('span');
-      label.textContent = this._t(key);
-      row.appendChild(label);
+    const chips = document.createElement('div');
+    chips.className = 'equipment-badges';
+    configured.forEach(({ key, powerKey, icon }) => {
+      let active = false;
+      let unavailable = !this.config[key];
 
       if (this.config[key]) {
         const state = this._getState(this.config[key]);
-        const unavailable = !state || ['unknown', 'unavailable'].includes(String(state.state).toLowerCase());
-        const active = this._isActive(state?.state);
-        const stateLabel = document.createElement('span');
-        stateLabel.className = `equipment-state equipment-${active ? 'on' : 'off'}`;
-        stateLabel.textContent = unavailable ? '—' : this._t(active ? 'on' : 'off');
-        row.appendChild(stateLabel);
+        unavailable = !state || ['unknown', 'unavailable'].includes(String(state.state).toLowerCase());
+        active = this._isActive(state?.state);
       }
 
+      let powerText = '';
       if (this.config[powerKey]) {
         const powerState = this._getState(this.config[powerKey]);
-        const power = document.createElement('span');
-        power.className = 'equipment-power';
-        power.textContent = this._formatValue(this._getValue(powerState), powerState);
-        row.appendChild(power);
+        powerText = this._formatPower(powerState);
       }
-      section.appendChild(row);
+      const stateText = unavailable ? '—' : this._t(active ? 'on' : 'off');
+      const value = powerText || stateText;
+      const tooltip = powerText ? `${this._t(key)}: ${stateText}, ${powerText}` : `${this._t(key)}: ${stateText}`;
+      chips.appendChild(this._createEntityBadge({
+        id: `sensor.poolsensor_${key}_status`,
+        label: this._t(key),
+        value,
+        icon,
+        color: unavailable ? 'var(--disabled-text-color)' : active ? 'var(--success-color)' : 'var(--secondary-text-color)',
+        tooltip,
+      }));
     });
-    return section;
+    return chips;
   }
 
   _isActive(value) {
     return ['on', 'open', 'active', 'running', 'true', '1'].includes(String(value).toLowerCase());
+  }
+
+  _formatPower(state) {
+    const value = this._normalizeValue(this._getValue(state));
+    if (value === null) {
+      return '—';
+    }
+    const unit = String(state?.attributes?.unit_of_measurement || 'W').toLowerCase();
+    const multipliers = { w: 1, kw: 1000, mw: 1000000 };
+    const watts = value * (multipliers[unit] || 1);
+    return `${watts.toFixed(1)} W`;
+  }
+
+  _createEntityBadge({ id, label, value, icon, color, tooltip }) {
+    const badge = document.createElement('hui-entity-badge');
+    const now = new Date().toISOString();
+    const state = {
+      entity_id: id,
+      state: String(value),
+      attributes: { friendly_name: label, icon },
+      last_changed: now,
+      last_updated: now,
+      context: {},
+    };
+
+    // Entity badges read their value from hass.states. Supply a private,
+    // display-only entity so a badge can combine a switch state and its power.
+    badge.hass = { ...this._hass, states: { ...this._hass.states, [id]: state } };
+    badge.setConfig({
+      type: 'entity',
+      entity: id,
+      name: label,
+      icon,
+      color,
+      show_name: true,
+      show_state: true,
+      show_icon: true,
+      tap_action: { action: 'none' },
+      hold_action: { action: 'none' },
+      double_tap_action: { action: 'none' },
+    });
+    badge.title = tooltip;
+    badge.setAttribute('aria-label', tooltip);
+    return badge;
+  }
+
+  _getGradeColor(grade) {
+    if (['A', 'B'].includes(grade)) {
+      return 'var(--success-color)';
+    }
+    if (['C', 'D'].includes(grade)) {
+      return 'var(--warning-color)';
+    }
+    if (grade === 'F') {
+      return 'var(--error-color)';
+    }
+    return 'var(--disabled-text-color)';
   }
 
   _getStatus(fieldKey, rawValue) {
@@ -437,11 +490,19 @@ customElements.define('poolsensor-water-quality-card', PoolWaterQualityCard);
 class PoolWaterQualityCardEditor extends HTMLElement {
   setConfig(config) {
     this._config = { language: 'en', ...(config.entities || {}), ...config };
+    if (this._form) {
+      this._form.data = this._config;
+      return;
+    }
     this._render();
   }
 
   set hass(hass) {
     this._hass = hass;
+    if (this._form) {
+      this._form.hass = hass;
+      return;
+    }
     this._render();
   }
 
@@ -451,6 +512,7 @@ class PoolWaterQualityCardEditor extends HTMLElement {
     }
 
     const form = document.createElement('ha-form');
+    this._form = form;
     form.hass = this._hass;
     form.data = this._config;
     form.schema = EDITOR_FIELDS.map((name) => ({

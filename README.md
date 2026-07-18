@@ -42,7 +42,7 @@ heating: switch.pool_heating
 heating_power: sensor.pool_heating_power
 ```
 
-The optional `filter` and `heating` entities show on/off state; `filter_power` and `heating_power` show the corresponding power sensor and its unit. Equipment state does not affect the water-quality grade.
+The optional filter/heating chips use icons and color to show on/off state; `filter_power` and `heating_power` are normalized to one decimal place in watts. Equipment state does not affect the water-quality grade.
 
 ## Customization
 
