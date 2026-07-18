@@ -5,7 +5,8 @@ const EQUIPMENT = [
   { key: 'filter', powerKey: 'filter_power', icon: 'mdi:filter' },
   { key: 'heating', powerKey: 'heating_power', icon: 'mdi:radiator' },
 ];
-const EDITOR_FIELDS = ['title', 'language', ...MEASUREMENTS, ...EQUIPMENT.flatMap(({ key, powerKey }) => [key, powerKey])];
+const AMBIENT_TEMPERATURE = 'ambient_temperature';
+const EDITOR_FIELDS = ['title', 'language', ...MEASUREMENTS, AMBIENT_TEMPERATURE, ...EQUIPMENT.flatMap(({ key, powerKey }) => [key, powerKey])];
 const QUALITY_LABELS = { en: 'Quality', de: 'Qualität', fr: 'Qualité', it: 'Qualità', es: 'Calidad' };
 
 
@@ -44,6 +45,7 @@ class PoolWaterQualityCard extends HTMLElement {
       title: config.title || translate(language, 'card_title'),
       language,
       ...Object.fromEntries(MEASUREMENTS.map((key) => [key, config[key] || entities[key]])),
+      [AMBIENT_TEMPERATURE]: config[AMBIENT_TEMPERATURE] || entities[AMBIENT_TEMPERATURE],
       ...Object.fromEntries(EQUIPMENT.flatMap(({ key, powerKey }) => [
         [key, config[key] || entities[key]],
         [powerKey, config[powerKey] || entities[powerKey]],
@@ -103,6 +105,14 @@ class PoolWaterQualityCard extends HTMLElement {
       .range-track { position: relative; width: 100%; height: 6px; border-radius: 99px; background: linear-gradient(to right, color-mix(in srgb, var(--error-color) 46%, transparent) 0%, color-mix(in srgb, var(--error-color) 34%, var(--success-color)) var(--good-start), color-mix(in srgb, var(--success-color) 38%, transparent) 50%, color-mix(in srgb, var(--error-color) 34%, var(--success-color)) var(--good-end), color-mix(in srgb, var(--error-color) 46%, transparent) 100%); }
       .range-marker { position: absolute; top: 50%; left: var(--marker-position); width: 10px; height: 10px; border: 2px solid var(--card-background-color); border-radius: 50%; background: var(--primary-text-color); box-sizing: border-box; transform: translate(-50%, -50%); }
       .range-label { display: block; margin-top: 2px; color: var(--secondary-text-color); font-size: 0.78em; text-align: right; }
+      .balance-profile { margin: 2px 14px 10px; }
+      .balance-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; color: var(--primary-text-color); font-size: 0.82em; font-weight: 500; }
+      .ambient-context { color: var(--secondary-text-color); font-size: 0.85em; font-weight: 400; white-space: nowrap; }
+      .balance-row { display: grid; grid-template-columns: minmax(76px, auto) minmax(0, 1fr); align-items: center; gap: 8px; padding: 2px 0; }
+      .balance-label { overflow: hidden; color: var(--secondary-text-color); font-size: 0.75em; text-overflow: ellipsis; white-space: nowrap; }
+      .balance-track { position: relative; height: 8px; border-radius: 99px; background: linear-gradient(to right, color-mix(in srgb, var(--error-color) 42%, transparent), color-mix(in srgb, var(--warning-color) 38%, transparent) 25%, color-mix(in srgb, var(--success-color) 38%, transparent) 40%, color-mix(in srgb, var(--success-color) 38%, transparent) 60%, color-mix(in srgb, var(--warning-color) 38%, transparent) 75%, color-mix(in srgb, var(--error-color) 42%, transparent)); }
+      .balance-track::after { content: ''; position: absolute; inset: -2px 0; border-left: 1px solid var(--divider-color); border-right: 1px solid var(--divider-color); border-radius: 99px; opacity: .7; }
+      .balance-marker { position: absolute; z-index: 1; top: 50%; left: var(--balance-position); width: 10px; height: 10px; border: 2px solid var(--card-background-color); border-radius: 50%; background: var(--primary-text-color); box-sizing: border-box; transform: translate(-50%, -50%); }
       .overall-guidance { margin: 0 14px 8px; font-size: 0.86em; line-height: 1.3; color: var(--secondary-text-color); padding: 5px 7px; border-left: 3px solid var(--warning-color); background: color-mix(in srgb, var(--warning-color) 10%, transparent); }
     `;
 
@@ -180,6 +190,11 @@ class PoolWaterQualityCard extends HTMLElement {
     header.appendChild(actions);
     card.appendChild(header);
     card.appendChild(content);
+
+    const balanceProfile = this._createBalanceProfile();
+    if (balanceProfile) {
+      card.appendChild(balanceProfile);
+    }
 
     const overallGuidance = this._getOverallGuidance();
     if (overallGuidance) {
@@ -378,6 +393,80 @@ class PoolWaterQualityCard extends HTMLElement {
     meter.appendChild(track);
     meter.appendChild(label);
     return meter;
+  }
+
+  _createBalanceProfile() {
+    const readings = this._fields
+      .map((field) => ({
+        ...field,
+        value: this._normalizeValue(this._getValue(this._getState(field.entity))),
+        range: this._getRange(field.key),
+      }))
+      .filter((field) => field.value !== null && field.range);
+    if (!readings.length) {
+      return null;
+    }
+
+    const profile = document.createElement('div');
+    profile.className = 'balance-profile';
+
+    const heading = document.createElement('div');
+    heading.className = 'balance-heading';
+    heading.append(this._t('balance_profile'));
+    const ambient = this._createAmbientContext();
+    if (ambient) {
+      heading.appendChild(ambient);
+    }
+    profile.appendChild(heading);
+
+    readings.forEach((reading) => {
+      const row = document.createElement('div');
+      row.className = 'balance-row';
+      const label = document.createElement('span');
+      label.className = 'balance-label';
+      label.textContent = reading.label;
+
+      const normalized = (reading.value - ((reading.range.min + reading.range.max) / 2))
+        / ((reading.range.max - reading.range.min) / 2);
+      const position = Math.max(0, Math.min(100, 50 + (normalized * 10)));
+      const track = document.createElement('div');
+      track.className = 'balance-track';
+      track.style.setProperty('--balance-position', `${position}%`);
+      track.title = `${reading.label}: ${reading.value} (${this._t('target')}: ${reading.range.label})`;
+      track.setAttribute('aria-label', track.title);
+      const marker = document.createElement('span');
+      marker.className = 'balance-marker';
+      track.appendChild(marker);
+
+      row.append(label, track);
+      profile.appendChild(row);
+    });
+    return profile;
+  }
+
+  _createAmbientContext() {
+    const state = this._getState(this.config[AMBIENT_TEMPERATURE]);
+    const ambient = this._normalizeValue(this._getValue(state));
+    if (ambient === null) {
+      return null;
+    }
+
+    const context = document.createElement('span');
+    context.className = 'ambient-context';
+    const ambientValue = this._formatValue(ambient, state);
+    const water = this._normalizeValue(this._getValue(this._getState(this.config.temperature)));
+    if (water === null) {
+      context.textContent = `${this._t(AMBIENT_TEMPERATURE)}: ${ambientValue}`;
+      return context;
+    }
+
+    const delta = water - ambient;
+    const sign = delta > 0 ? '+' : '';
+    const unit = this._getState(this.config.temperature)?.attributes?.unit_of_measurement
+      || state?.attributes?.unit_of_measurement
+      || '°C';
+    context.textContent = `${this._t(AMBIENT_TEMPERATURE)}: ${ambientValue} · ${this._t('water_air_delta')}: ${sign}${delta.toFixed(1)} ${unit}`;
+    return context;
   }
 
   _getStatusTooltip(fieldKey, rawValue, range, status) {

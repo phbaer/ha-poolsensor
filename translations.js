@@ -5,6 +5,13 @@ export const EQUIPMENT_TRANSLATIONS = {
   it: { filter: 'Filtro', filter_power: 'Potenza del filtro', heating: 'Riscaldamento', heating_power: 'Potenza del riscaldamento', on: 'Acceso', off: 'Spento' },
   es: { filter: 'Filtración', filter_power: 'Potencia del filtro', heating: 'Calefacción', heating_power: 'Potencia de calefacción', on: 'Encendido', off: 'Apagado' },
 };
+export const CONTEXT_TRANSLATIONS = {
+  en: { ambient_temperature: 'Ambient temperature', balance_profile: 'Water balance profile', water_air_delta: 'Water − air' },
+  de: { ambient_temperature: 'Umgebungstemperatur', balance_profile: 'Wasserbalance-Profil', water_air_delta: 'Wasser − Luft' },
+  fr: { ambient_temperature: 'Température ambiante', balance_profile: 'Profil d’équilibre de l’eau', water_air_delta: 'Eau − air' },
+  it: { ambient_temperature: 'Temperatura ambiente', balance_profile: 'Profilo di equilibrio dell’acqua', water_air_delta: 'Acqua − aria' },
+  es: { ambient_temperature: 'Temperatura ambiente', balance_profile: 'Perfil de equilibrio del agua', water_air_delta: 'Agua − aire' },
+};
 export const TRANSLATIONS = {
   en: {
     card_title: 'Pool Water Quality', language: 'Language', title: 'Title', ph: 'pH', free_chlorine: 'Free chlorine', orp: 'ORP', temperature: 'Temperature', salinity: 'Salinity', tds: 'TDS', ec: 'EC', target: 'Target', recommendation: 'Recommended next step', unknown: '{label}: no valid reading or target configured', below: '{label}: below target ({range})', above: '{label}: above target ({range})', within: '{label}: within target ({range})', grade_missing: 'configure pH and free chlorine to calculate a grade', grade_waiting: 'waiting for valid pH and free-chlorine readings', grade_chlorine_low: 'free chlorine is below its configured minimum', grade_critical: '{label} is outside its critical range', grade_multiple: 'multiple primary readings need attention', grade_one: 'one primary reading needs attention', grade_support: 'primary readings are on target; a supporting reading needs attention', grade_all: 'all configured readings with targets are on target', ph_low: 'pH is low. Confirm with a drop test, then use a pool-specific pH increaser according to its label. Retest before making another adjustment.', ph_high: 'pH is high. Confirm with a drop test, then use a pool-specific pH reducer according to its label. Retest before making another adjustment.', chlorine_low: 'Free chlorine is low. Confirm with a DPD test, then raise it with your chlorinator or a labelled chlorine product. Circulate and retest.', chlorine_high: 'Free chlorine is high. Pause chlorination and retest before swimming; follow the chemical label and local guidance.', orp_low: 'ORP is low. Verify pH and free chlorine with a reliable test and correct those values rather than dosing from ORP alone.', orp_high: 'ORP is high. Verify free chlorine and pH with a reliable test before changing chlorinator settings.', temperature_low: 'Temperature is below the configured comfort target. Adjust heating if your pool has it.', temperature_high: 'Temperature is above the configured comfort target. Reduce heating or adjust cover use as appropriate.', salinity_low: 'Salinity is below your configured target. Follow your salt chlorinator manufacturer’s instructions before adding salt.', salinity_high: 'Salinity is above your configured target. Follow your chlorinator manufacturer’s instructions; dilution may be required.', tds: 'TDS', tds_low: 'TDS is outside your configured target. Use it as a trend indicator and confirm overall balance with a proper water test.', tds_high: 'TDS is outside your configured target. Use it as a trend indicator and confirm overall balance with a proper water test.', ec_low: 'EC is outside your configured target. Check probe calibration and use a proper water test before adjusting chemicals.', ec_high: 'EC is outside your configured target. Check probe calibration and use a proper water test before adjusting chemicals.', also_ph: ' Also correct pH after confirming both readings.',
@@ -30,8 +37,10 @@ export const LANGUAGE_OPTIONS = [
 export const translate = (language, key, values = {}) => {
   const text = TRANSLATIONS[language]?.[key]
     || EQUIPMENT_TRANSLATIONS[language]?.[key]
+    || CONTEXT_TRANSLATIONS[language]?.[key]
     || TRANSLATIONS.en[key]
     || EQUIPMENT_TRANSLATIONS.en[key]
+    || CONTEXT_TRANSLATIONS.en[key]
     || key;
   return text.replace(/\{(\w+)\}/g, (_, name) => values[name] ?? `{${name}}`);
 };

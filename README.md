@@ -32,6 +32,7 @@ ph: sensor.pool_ph
 free_chlorine: sensor.pool_cl
 orp: sensor.pool_orp
 temperature: sensor.pool_temperature
+ambient_temperature: sensor.outdoor_temperature
 salinity: sensor.pool_salinity
 tds: sensor.pool_tds
 ec: sensor.pool_ec
@@ -43,6 +44,8 @@ heating_power: sensor.pool_heating_power
 ```
 
 The optional filter/heating chips use icons and color to show on/off state; `filter_power` and `heating_power` are normalized to one decimal place in watts. Equipment state does not affect the water-quality grade.
+
+`ambient_temperature` is optional. It is displayed as context alongside the water-balance profile and, when water temperature is configured, shows the water–air temperature difference. It does not affect the water-quality grade.
 
 ## Customization
 
@@ -59,6 +62,8 @@ ranges:
 ```
 
 Each configured target is displayed as a range bar: the green centre is the target region, the faded red sections are outside it, and the dot is the current reading. Measurements without a configured entity are omitted. Values are read directly from Home Assistant and are never persisted or modified by the card.
+
+The compact **Water balance profile** combines every configured reading that has a target into one normalized graph. The central green area is that reading’s configured target; markers to the left or right are below or above it. This lets unlike units be compared meaningfully without putting pH, chlorine, and ORP on one physical scale.
 
 The default targets are pH (6.5–7.3), free chlorine (0.3–0.6 mg/L), ORP (650–750 mV), and a temperature comfort range (24–30 °C). The pH/free-chlorine pair follows [German Federal Environment Agency guidance](https://www.umweltbundesamt.de/sites/default/files/medien/419/dokumente/49_s_926-937_hygieneanforderungen_an_baeder.pdf). It is not an EU-wide legal limit: set your own range for local rules, stabiliser use, pool type, and equipment instructions. Salinity, TDS, and EC have no default target: configure them only from your chlorinator manual, pool type, and source-water test results, using the same unit as the entity. ORP is a supporting signal, not a chemical-dosing target by itself.
 
