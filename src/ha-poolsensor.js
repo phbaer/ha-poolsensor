@@ -11,6 +11,13 @@ const EQUIPMENT = [
 const AMBIENT_TEMPERATURE = 'ambient_temperature';
 const HISTORY_FIELDS = ['show_history'];
 const HISTORY_BUCKETS = 72;
+const HISTORY_NORMALIZED_LIMIT = 3;
+const HISTORY_LIMITS = {
+  temperature: { min: 16, max: 35 },
+  ambient_temperature: { min: 16, max: 40 },
+  ph: { min: 5.5, max: 9.5 },
+  free_chlorine: { min: 0, max: 10 },
+};
 const EDITOR_FIELDS = ['title', 'language', ...MEASUREMENTS, AMBIENT_TEMPERATURE, ...HISTORY_FIELDS, ...EQUIPMENT.flatMap(({ key, powerKey }) => [key, powerKey])];
 const QUALITY_LABELS = { en: 'Quality', de: 'Qualität', fr: 'Qualité', it: 'Qualità', es: 'Calidad' };
 
@@ -29,6 +36,7 @@ class PoolWaterQualityCard extends HTMLElement {
   constructor() {
     super();
     this._fields = [];
+    this._plotResizers = [];
   }
 
   static getConfigElement() {
@@ -87,7 +95,9 @@ class PoolWaterQualityCard extends HTMLElement {
     }
 
     this._plots?.forEach((plot) => plot.destroy());
+    this._plotResizers.forEach((observer) => observer.disconnect());
     this._plots = [];
+    this._plotResizers = [];
     this._pendingCharts = [];
 
     this._fields = MEASUREMENTS
@@ -119,11 +129,11 @@ class PoolWaterQualityCard extends HTMLElement {
       .range-marker-offscale { width: auto; height: auto; border: 0; border-radius: 0; background: transparent; color: var(--warning-color); font-size: 1.35em; font-weight: 700; line-height: 1; }
       .range-label { display: block; margin-top: 2px; color: var(--secondary-text-color); font-size: 0.78em; text-align: right; }
       .ambient-context { color: var(--secondary-text-color); font-size: 0.78em; font-weight: 400; white-space: nowrap; }
-      .history-section { margin: 0 14px 10px; }
-      .history-heading { margin: 4px 0 5px; color: var(--primary-text-color); font-size: 0.86em; font-weight: 500; }
+      .history-section { margin: 0 0 10px; }
+      .history-heading { margin: 4px 0 5px; padding: 0 14px; color: var(--primary-text-color); font-size: 0.86em; font-weight: 500; }
       .history-chart { margin-top: 6px; }
       .history-chart:first-of-type { margin-top: 0; }
-      .history-chart-label { display: flex; justify-content: space-between; margin-bottom: 2px; color: var(--secondary-text-color); font-size: 0.75em; }
+      .history-chart-label { display: flex; justify-content: space-between; margin-bottom: 2px; padding: 0 14px; color: var(--secondary-text-color); font-size: 0.75em; }
       .history-legend { display: flex; flex-wrap: wrap; gap: 8px; }
       .history-legend-item { display: inline-flex; align-items: center; gap: 4px; }
       .history-swatch { width: 14px; height: 0; border-top: 2px solid currentColor; }
@@ -132,7 +142,7 @@ class PoolWaterQualityCard extends HTMLElement {
       .history-swatch.history-ph { color: var(--info-color, var(--primary-color)); }
       .history-swatch.history-chlorine { color: var(--warning-color); }
       .history-chart svg { display: block; width: 100%; height: 58px; overflow: visible; }
-      .history-plot { position: relative; min-height: 150px; }
+      .history-plot { position: relative; width: 100%; min-height: 150px; overflow: hidden; }
       .uplot, .uplot * { box-sizing: border-box; }
       .uplot { font-family: var(--paper-font-body1_-_font-family, sans-serif); font-size: .75em; }
       .u-wrap, .u-over, .u-under { position: absolute; }
@@ -525,15 +535,11 @@ class PoolWaterQualityCard extends HTMLElement {
     section.appendChild(heading);
 
     const temperatureSeries = [
-      { entity: this.config.temperature, className: 'history-water', label: this._t('temperature') },
-      { entity: this.config[AMBIENT_TEMPERATURE], className: 'history-ambient', label: this._t(AMBIENT_TEMPERATURE) },
-    ].map((series) => ({ ...series, points: this._getHistoryPoints(series.entity) }))
+      { entity: this.config.temperature, key: 'temperature', className: 'history-water', label: this._t('temperature') },
+      { entity: this.config[AMBIENT_TEMPERATURE], key: AMBIENT_TEMPERATURE, className: 'history-ambient', label: this._t(AMBIENT_TEMPERATURE) },
+    ].map((series) => ({ ...series, points: this._getHistoryPoints(series.entity, HISTORY_LIMITS[series.key]) }))
       .filter((series) => series.points.length);
     if (temperatureSeries.length) {
-      const values = temperatureSeries.flatMap((series) => series.points.map((point) => point.value));
-      const min = Math.min(...values);
-      const max = Math.max(...values);
-      const padding = Math.max(1, (max - min) * 0.15);
       const unit = this._getState(this.config.temperature)?.attributes?.unit_of_measurement
         || this._getState(this.config[AMBIENT_TEMPERATURE])?.attributes?.unit_of_measurement
         || '°C';
@@ -541,7 +547,7 @@ class PoolWaterQualityCard extends HTMLElement {
         label: temperatureSeries.map((series) => series.label).join(' · '),
         detail: unit,
         series: temperatureSeries,
-        valueToY: (value) => 56 - (((value - (min - padding)) / ((max - min) + (padding * 2))) * 56),
+        yRange: this._getHistoryScale(temperatureSeries.flatMap((series) => series.points.map((point) => point.median)), { min: 16, max: 45, minimumSpan: 4 }),
       }));
     }
 
@@ -553,7 +559,7 @@ class PoolWaterQualityCard extends HTMLElement {
         key,
         className: key === 'ph' ? 'history-ph' : 'history-chlorine',
         label: this._t(key),
-        points: this._getHistoryPoints(this.config[key]),
+        points: this._getHistoryPoints(this.config[key], HISTORY_LIMITS[key]),
         range,
         midpoint,
         halfSpan,
@@ -565,33 +571,24 @@ class PoolWaterQualityCard extends HTMLElement {
         detail: this._t('normalized_target'),
         series: qualitySeries.map((series) => ({
           ...series,
-          points: series.points.map((point) => ({
-            ...point,
-            rawMin: point.min,
-            rawMax: point.max,
-            rawMedian: point.median,
-            min: (point.min - series.midpoint) / series.halfSpan,
-            max: (point.max - series.midpoint) / series.halfSpan,
-            median: (point.median - series.midpoint) / series.halfSpan,
-            value: (point.median - series.midpoint) / series.halfSpan,
-            normalized: (point.median - series.midpoint) / series.halfSpan,
-          })),
+          points: series.points.map((point) => this._normalizeHistoryPoint(point, series)),
         })),
         target: true,
-        valueToY: (_, point) => Math.max(0, Math.min(56, 28 - (point.normalized * 5.6))),
+        yRange: [-HISTORY_NORMALIZED_LIMIT, HISTORY_NORMALIZED_LIMIT],
       }));
     }
     return section.children.length > 1 ? section : null;
   }
 
-  _getHistoryPoints(entity) {
+  _getHistoryPoints(entity, limits) {
     if (!entity) {
       return [];
     }
     const readings = (this._historyData?.[entity] || []).map((state) => ({
       time: new Date(state.last_changed || state.last_updated).getTime(),
       value: this._normalizeValue(state.state),
-    })).filter((point) => Number.isFinite(point.time) && point.value !== null)
+    })).filter((point) => Number.isFinite(point.time) && point.value !== null
+      && (!limits || (point.value >= limits.min && point.value <= limits.max)))
       .sort((a, b) => a.time - b.time);
     if (!readings.length) {
       return [];
@@ -627,7 +624,47 @@ class PoolWaterQualityCard extends HTMLElement {
     });
   }
 
-  _createHistoryChart({ label, detail, series, target = false, valueToY }) {
+  _normalizeHistoryPoint(point, series) {
+    const normalize = (value) => (value - series.midpoint) / series.halfSpan;
+    const median = normalize(point.median);
+    const isVisible = Math.abs(median) <= HISTORY_NORMALIZED_LIMIT;
+    const min = normalize(point.min);
+    const max = normalize(point.max);
+    return {
+      ...point,
+      rawMin: point.min,
+      rawMax: point.max,
+      rawMedian: point.median,
+      // A single bad probe reading must not inflate the min/max envelope or
+      // flatten the rest of the chart. Keep the bucket median and discard
+      // only the outlying edge of its envelope.
+      min: !isVisible ? null : Math.abs(min) <= HISTORY_NORMALIZED_LIMIT ? min : median,
+      max: !isVisible ? null : Math.abs(max) <= HISTORY_NORMALIZED_LIMIT ? max : median,
+      median: isVisible ? median : null,
+      value: isVisible ? median : null,
+      normalized: median,
+    };
+  }
+
+  _getHistoryScale(values, { min, max, minimumSpan }) {
+    const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+    if (!sorted.length) {
+      return [min, max];
+    }
+    const percentile = (fraction) => sorted[Math.round((sorted.length - 1) * fraction)];
+    const lower = percentile(0.05);
+    const upper = percentile(0.95);
+    const span = Math.max(minimumSpan, upper - lower);
+    const padding = Math.max(0.5, span * 0.15);
+    const scaleMin = Math.max(min, lower - padding);
+    const scaleMax = Math.min(max, upper + padding);
+    return scaleMax - scaleMin >= minimumSpan ? [scaleMin, scaleMax] : [
+      Math.max(min, scaleMin - ((minimumSpan - (scaleMax - scaleMin)) / 2)),
+      Math.min(max, scaleMax + ((minimumSpan - (scaleMax - scaleMin)) / 2)),
+    ];
+  }
+
+  _createHistoryChart({ label, detail, series, target = false, yRange }) {
     const chart = document.createElement('div');
     chart.className = 'history-chart';
     const caption = document.createElement('div');
@@ -655,7 +692,7 @@ class PoolWaterQualityCard extends HTMLElement {
     tooltip.className = 'history-tooltip';
     tooltip.hidden = true;
     plot.appendChild(tooltip);
-    this._pendingCharts.push({ plot, tooltip, series, detail, target });
+    this._pendingCharts.push({ plot, tooltip, series, detail, target, yRange });
     chart.append(caption, plot);
     return chart;
   }
@@ -671,7 +708,7 @@ class PoolWaterQualityCard extends HTMLElement {
       'history-ph': palette.getPropertyValue('--info-color').trim() || palette.getPropertyValue('--primary-color').trim(),
       'history-chlorine': palette.getPropertyValue('--warning-color').trim(),
     };
-    this._pendingCharts.forEach(({ plot, tooltip, series, detail, target }) => {
+    this._pendingCharts.forEach(({ plot, tooltip, series, detail, target, yRange }) => {
       const data = [series[0].points.map((point) => point.time / 1000)];
       const plotSeries = [{}];
       if (target) {
@@ -687,16 +724,29 @@ class PoolWaterQualityCard extends HTMLElement {
         plotSeries.push(
           { label: `${item.label} min`, band: true, stroke: 'transparent', fill: this._transparentColor(color), show: true },
           { label: `${item.label} max`, band: true, stroke: 'transparent', fill: this._transparentColor(color), show: true },
-          { label: item.label, stroke: color, width: 2, dash: item.className === 'history-ambient' ? [4, 3] : [], value: (_, value) => value == null ? '' : value.toFixed(2) },
+          {
+            label: item.label,
+            stroke: color,
+            width: 2,
+            dash: item.className === 'history-ambient' ? [4, 3] : [],
+            points: { show: false },
+            spanGaps: false,
+            value: (_, value) => value == null ? '' : value.toFixed(2),
+          },
         );
         tooltipRows.push(item);
       });
       const options = {
-        width: Math.max(220, plot.clientWidth),
+        width: Math.max(1, Math.floor(plot.getBoundingClientRect().width)),
         height: 150,
+        pxAlign: true,
         legend: { show: false },
         series: plotSeries,
-        axes: [{ stroke: palette.getPropertyValue('--secondary-text-color').trim(), grid: { stroke: palette.getPropertyValue('--divider-color').trim() } }, { stroke: palette.getPropertyValue('--secondary-text-color').trim(), grid: { stroke: palette.getPropertyValue('--divider-color').trim() } }],
+        scales: { y: { range: yRange } },
+        axes: [
+          { stroke: palette.getPropertyValue('--secondary-text-color').trim(), grid: { stroke: palette.getPropertyValue('--divider-color').trim() } },
+          { stroke: palette.getPropertyValue('--secondary-text-color').trim(), grid: { stroke: palette.getPropertyValue('--divider-color').trim() } },
+        ],
         hooks: { setCursor: [(u) => {
           const index = u.cursor.idx;
           if (index == null || index < 0) { tooltip.hidden = true; return; }
@@ -711,7 +761,16 @@ class PoolWaterQualityCard extends HTMLElement {
           tooltip.hidden = false;
         }] },
       };
-      this._plots.push(new uPlot(options, data, plot));
+      const chart = new uPlot(options, data, plot);
+      this._plots.push(chart);
+      const observer = new ResizeObserver(([entry]) => {
+        const width = Math.max(1, Math.floor(entry.contentRect.width));
+        if (width !== chart.width) {
+          chart.setSize({ width, height: chart.height });
+        }
+      });
+      observer.observe(plot);
+      this._plotResizers.push(observer);
     });
     this._pendingCharts = [];
   }
