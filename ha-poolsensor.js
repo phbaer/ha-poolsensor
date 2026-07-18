@@ -1,5 +1,4 @@
-// Keep this cache-buster in sync whenever translations.js changes. Home
-// Assistant refreshes the card resource independently from its submodules.
+// Authored card entry point. Release workflows bundle this file for HACS.
 import { TRANSLATIONS, LANGUAGE_OPTIONS, translate } from './translations.js';
 import uPlot from 'uplot';
 
@@ -645,7 +644,7 @@ class PoolWaterQualityCard extends HTMLElement {
     ];
   }
 
-  _createHistoryChart({ label, detail, series, target = false, yRange, chartOptions = null }) {
+  _createHistoryChart({ label, detail, series, yRange, chartOptions = null }) {
     const chart = document.createElement('div');
     chart.className = 'history-chart';
     const caption = document.createElement('div');
@@ -673,7 +672,7 @@ class PoolWaterQualityCard extends HTMLElement {
     tooltip.className = 'history-tooltip';
     tooltip.hidden = true;
     plot.appendChild(tooltip);
-    this._pendingCharts.push({ plot, tooltip, series, detail, target, yRange, chartOptions });
+    this._pendingCharts.push({ plot, tooltip, series, detail, yRange, chartOptions });
     chart.append(caption, plot);
     return chart;
   }
@@ -689,22 +688,20 @@ class PoolWaterQualityCard extends HTMLElement {
       'history-ph': palette.getPropertyValue('--info-color').trim() || palette.getPropertyValue('--primary-color').trim(),
       'history-chlorine': palette.getPropertyValue('--warning-color').trim(),
     };
-    this._pendingCharts.forEach(({ plot, tooltip, series, detail, target, yRange, chartOptions }) => {
+    this._pendingCharts.forEach(({ plot, tooltip, series, detail, yRange, chartOptions }) => {
       const data = [series[0].points.map((point) => point.time / 1000)];
       const plotSeries = [{}];
-      if (target) {
-        data.push(data[0].map(() => -1), data[0].map(() => 1));
-        plotSeries.push({ label: '', band: true, stroke: 'transparent', fill: 'rgba(76, 175, 80, .14)', show: true }, { label: '', band: true, stroke: 'transparent', fill: 'rgba(76, 175, 80, .14)', show: true });
-      }
+      const bands = [];
       const tooltipRows = [];
       series.forEach((item) => {
         const color = colors[item.className] || palette.getPropertyValue('--primary-color').trim();
+        const lowIndex = plotSeries.length;
         data.push(item.points.map((point) => point.min ?? point.value));
         data.push(item.points.map((point) => point.max ?? point.value));
         data.push(item.points.map((point) => point.median ?? point.value));
         plotSeries.push(
-          { label: `${item.label} min`, scale: item.scale, band: true, stroke: 'transparent', fill: this._transparentColor(color), points: { show: false }, show: true },
-          { label: `${item.label} max`, scale: item.scale, band: true, stroke: 'transparent', fill: this._transparentColor(color), points: { show: false }, show: true },
+          { label: `${item.label} min`, scale: item.scale, stroke: 'transparent', points: { show: false }, show: true },
+          { label: `${item.label} max`, scale: item.scale, stroke: 'transparent', points: { show: false }, show: true },
           {
             label: item.label,
             scale: item.scale,
@@ -716,8 +713,20 @@ class PoolWaterQualityCard extends HTMLElement {
             value: (_, value) => value == null ? '' : value.toFixed(2),
           },
         );
+        bands.push({ series: [lowIndex + 1, lowIndex], fill: this._transparentColor(color) });
         tooltipRows.push(item);
       });
+      const updateTooltip = (index) => {
+        if (!Number.isInteger(index) || index < 0 || index >= data[0].length) {
+          return;
+        }
+        const when = new Date(data[0][index] * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        tooltip.textContent = `${when} · ${tooltipRows.map((item) => {
+          const point = item.points[index];
+          return `${item.label}: ${point.median.toFixed(2)} (${point.min.toFixed(2)}–${point.max.toFixed(2)})`;
+        }).join(' · ')}`;
+        tooltip.hidden = false;
+      };
       const options = {
         width: Math.max(1, Math.floor(plot.getBoundingClientRect().width)),
         height: 150,
@@ -725,29 +734,15 @@ class PoolWaterQualityCard extends HTMLElement {
         legend: { show: false },
         cursor: {
           points: { show: false },
-          // Snap the tooltip to the nearest time bucket anywhere in the plot,
-          // rather than requiring the pointer to be close to a series line.
           hover: { prox: null },
         },
         series: plotSeries,
+        bands,
         scales: yRange ? { y: { range: yRange } } : {},
         axes: [
           { stroke: palette.getPropertyValue('--secondary-text-color').trim(), grid: { stroke: palette.getPropertyValue('--divider-color').trim() } },
           { stroke: palette.getPropertyValue('--secondary-text-color').trim(), grid: { stroke: palette.getPropertyValue('--divider-color').trim() } },
         ],
-        hooks: { setCursor: [(u) => {
-          const index = u.cursor.idx;
-          if (index == null || index < 0) { tooltip.hidden = true; return; }
-          const when = new Date(data[0][index] * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          tooltip.textContent = `${when} · ${tooltipRows.map((item) => {
-            const point = item.points[index];
-            const median = target ? point.rawMedian : point.median;
-            const min = target ? point.rawMin : point.min;
-            const max = target ? point.rawMax : point.max;
-            return `${item.label}: ${median.toFixed(2)} (${min.toFixed(2)}–${max.toFixed(2)})`;
-          }).join(' · ')}`;
-          tooltip.hidden = false;
-        }] },
       };
       if (chartOptions?.scales) {
         Object.assign(options.scales, chartOptions.scales);
@@ -760,6 +755,17 @@ class PoolWaterQualityCard extends HTMLElement {
       }
       const chart = new uPlot(options, data, plot);
       this._plots.push(chart);
+      const showTooltipAtPointer = (event) => {
+        const bounds = chart.over.getBoundingClientRect();
+        const plotX = event.clientX - bounds.left;
+        const index = chart.posToIdx(plotX);
+        updateTooltip(index);
+      };
+      plot.addEventListener('pointerenter', showTooltipAtPointer);
+      plot.addEventListener('pointermove', showTooltipAtPointer);
+      plot.addEventListener('pointerleave', () => {
+        tooltip.hidden = true;
+      });
       const observer = new ResizeObserver(([entry]) => {
         const width = Math.max(1, Math.floor(entry.contentRect.width));
         if (width !== chart.width) {

@@ -1,4 +1,4 @@
-// Localized strings for the Pool Water Quality Card.
+// Localized strings for the authored Pool Water Quality Card source.
 export const EQUIPMENT_TRANSLATIONS = {
   en: { filter: 'Filter', filter_power: 'Filter power', heating: 'Heating', heating_power: 'Heating power', on: 'On', off: 'Off' },
   de: { filter: 'Filter', filter_power: 'Filterleistung', heating: 'Heizung', heating_power: 'Heizleistung', on: 'Ein', off: 'Aus' },

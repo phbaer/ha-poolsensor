@@ -50,7 +50,7 @@ The optional filter/heating badges use icons and color to show on/off state; `fi
 
 When `show_history` is enabled (the default), the card also requests the previous 24 hours from Home Assistant Recorder. It shows water and ambient temperatures together in °C, plus pH and free chlorine on a separate timeline normalized to their configured target ranges. Each 20-minute bucket is shown as a median line with a faded minimum–maximum envelope; hover a chart to inspect that bucket’s values. The trend section is hidden automatically when Recorder history is unavailable. Disable it with `show_history: false`.
 
-Each release bundles [uPlot](https://github.com/leeoniya/uPlot) (MIT License) for the interactive trend charts. Development dependencies are defined in `package.json`; run `npm ci && npm run build` after changing files in `src/` to create a local `dist/ha-poolsensor.js`.
+Each release bundles [uPlot](https://github.com/leeoniya/uPlot) (MIT License) for the interactive trend charts. Development dependencies are defined in `package.json`; run `npm ci && npm run build` after changing the authored source files in the repository root to create a local `dist/ha-poolsensor.js`.
 
 ### Renovate
 

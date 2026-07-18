@@ -8,7 +8,7 @@ await mkdir(dirname(outfile), { recursive: true });
 
 await build({
   bundle: true,
-  entryPoints: ['src/ha-poolsensor.js'],
+  entryPoints: ['ha-poolsensor.js'],
   format: 'esm',
   outfile,
   legalComments: 'inline',
