@@ -1,6 +1,5 @@
 // Authored card entry point. Release workflows bundle this file for HACS.
 import { TRANSLATIONS, LANGUAGE_OPTIONS, translate } from './translations.js';
-import uPlot from 'uplot';
 
 const MEASUREMENTS = ['ph', 'free_chlorine', 'orp', 'temperature', 'salinity', 'tds', 'ec'];
 const EQUIPMENT = [
@@ -8,15 +7,7 @@ const EQUIPMENT = [
   { key: 'heating', powerKey: 'heating_power', icon: 'mdi:radiator' },
 ];
 const AMBIENT_TEMPERATURE = 'ambient_temperature';
-const HISTORY_FIELDS = ['show_history'];
-const HISTORY_BUCKETS = 72;
-const HISTORY_LIMITS = {
-  temperature: { min: 16, max: 35 },
-  ambient_temperature: { min: 16, max: 40 },
-  ph: { min: 5.5, max: 9.5 },
-  free_chlorine: { min: 0, max: 3 },
-};
-const EDITOR_FIELDS = ['title', 'language', ...MEASUREMENTS, AMBIENT_TEMPERATURE, ...HISTORY_FIELDS, ...EQUIPMENT.flatMap(({ key, powerKey }) => [key, powerKey])];
+const EDITOR_FIELDS = ['title', 'language', ...MEASUREMENTS, AMBIENT_TEMPERATURE, ...EQUIPMENT.flatMap(({ key, powerKey }) => [key, powerKey])];
 const QUALITY_LABELS = { en: 'Quality', de: 'Qualität', fr: 'Qualité', it: 'Qualità', es: 'Calidad' };
 
 
@@ -34,7 +25,6 @@ class PoolWaterQualityCard extends HTMLElement {
   constructor() {
     super();
     this._fields = [];
-    this._plotResizers = [];
     this._hassSignature = null;
   }
 
@@ -58,7 +48,6 @@ class PoolWaterQualityCard extends HTMLElement {
       language,
       ...Object.fromEntries(MEASUREMENTS.map((key) => [key, config[key] || entities[key]])),
       [AMBIENT_TEMPERATURE]: config[AMBIENT_TEMPERATURE] || entities[AMBIENT_TEMPERATURE],
-      show_history: config.show_history !== false,
       ...Object.fromEntries(EQUIPMENT.flatMap(({ key, powerKey }) => [
         [key, config[key] || entities[key]],
         [powerKey, config[powerKey] || entities[powerKey]],
@@ -73,7 +62,6 @@ class PoolWaterQualityCard extends HTMLElement {
     };
     if (this._hass) {
       this._hassSignature = this._getHassSignature(this._hass);
-      this._loadHistory();
       this.render();
     }
   }
@@ -93,7 +81,6 @@ class PoolWaterQualityCard extends HTMLElement {
       return;
     }
     this._hassSignature = signature;
-    this._loadHistory();
     this.render();
   }
 
@@ -117,11 +104,6 @@ class PoolWaterQualityCard extends HTMLElement {
       return;
     }
 
-    this._plots?.forEach((plot) => plot.destroy());
-    this._plotResizers.forEach((observer) => observer.disconnect());
-    this._plots = [];
-    this._plotResizers = [];
-    this._pendingCharts = [];
 
     this._fields = MEASUREMENTS
       .map((key) => ({ key, label: this._t(key), entity: this.config[key] }))
@@ -182,6 +164,18 @@ class PoolWaterQualityCard extends HTMLElement {
       .history-ph { fill: none; stroke: var(--info-color, var(--primary-color)); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
       .history-chlorine { fill: none; stroke: var(--warning-color); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
       .overall-guidance { margin: 0 14px 8px; font-size: 0.86em; line-height: 1.3; color: var(--secondary-text-color); padding: 5px 7px; border-left: 3px solid var(--warning-color); background: color-mix(in srgb, var(--warning-color) 10%, transparent); }
+      @media (max-width: 480px) {
+        .card-header { align-items: flex-start; gap: 8px; padding: 10px 12px 4px; }
+        .card-title { min-width: 0; font-size: 1em; overflow-wrap: anywhere; }
+        .header-actions { max-width: 55%; gap: 4px; }
+        .pool-values { padding: 0 12px 8px; }
+        .pool-row { grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 6px; }
+        .label, .value { min-width: 0; overflow-wrap: anywhere; }
+        .value { white-space: nowrap; }
+        .ambient-context { display: none; }
+        .range-label { font-size: .72em; }
+        .overall-guidance { margin: 0 12px 8px; }
+      }
     `;
 
     const content = document.createElement('div');
@@ -265,11 +259,6 @@ class PoolWaterQualityCard extends HTMLElement {
     card.appendChild(header);
     card.appendChild(content);
 
-    const history = this._createHistoryCharts();
-    if (history) {
-      card.appendChild(history);
-    }
-
     const overallGuidance = this._getOverallGuidance();
     if (overallGuidance) {
       const guidance = document.createElement('div');
@@ -277,8 +266,6 @@ class PoolWaterQualityCard extends HTMLElement {
       guidance.textContent = `${this._t('recommendation')}: ${overallGuidance}`;
       card.appendChild(guidance);
     }
-
-    queueMicrotask(() => this._renderHistoryCharts());
 
     this.innerHTML = '';
     this.appendChild(card);
@@ -501,6 +488,9 @@ class PoolWaterQualityCard extends HTMLElement {
     return meter;
   }
 
+  /* Removed embedded chart implementation. Native statistics-graph cards are
+   * used for history so this compact card stays responsive on mobile. */
+  /*
   _loadHistory() {
     if (!this._hass || !this.config?.show_history || typeof this._hass.callApi !== 'function') {
       return;
@@ -813,6 +803,8 @@ class PoolWaterQualityCard extends HTMLElement {
     return match ? `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${alpha})` : `rgba(128, 128, 128, ${alpha})`;
   }
 
+  */
+
   _createAmbientContext() {
     const state = this._getState(this.config[AMBIENT_TEMPERATURE]);
     const ambient = this._normalizeValue(this._getValue(state));
@@ -978,7 +970,7 @@ class PoolWaterQualityCardEditor extends HTMLElement {
       selector: name === 'title'
         ? { text: {} }
         : name === 'language' ? { select: { options: LANGUAGE_OPTIONS } }
-          : name === 'show_history' ? { boolean: {} } : { entity: {} },
+          : { entity: {} },
     }));
     form.computeLabel = (schema) => translate(this._config.language || 'en', schema.name);
     form.addEventListener('value-changed', (event) => {

@@ -19,7 +19,7 @@ resources:
 
 ### Manual installation
 
-Download `ha-poolsensor.js` from the chosen [release](../../releases), copy it to `config/www/`, then add `/local/ha-poolsensor.js` as a `module` resource. The distributable includes its translations and charting dependency.
+Download `ha-poolsensor.js` from the chosen [release](../../releases), copy it to `config/www/`, then add `/local/ha-poolsensor.js` as a `module` resource.
 
 ### Lovelace card
 
@@ -33,7 +33,6 @@ free_chlorine: sensor.pool_cl
 orp: sensor.pool_orp
 temperature: sensor.pool_temperature
 ambient_temperature: sensor.outdoor_temperature
-show_history: true
 salinity: sensor.pool_salinity
 tds: sensor.pool_tds
 ec: sensor.pool_ec
@@ -48,9 +47,26 @@ The optional filter/heating badges use icons and color to show on/off state; `fi
 
 `ambient_temperature` is optional. It is shown beside the water-temperature reading and, when water temperature is configured, includes the water–air temperature difference. It does not affect the water-quality grade.
 
-When `show_history` is enabled (the default), the card also requests the previous 24 hours from Home Assistant Recorder. It shows water and ambient temperatures together in °C, plus pH and free chlorine on a separate timeline normalized to their configured target ranges. Each 20-minute bucket is shown as a median line with a faded minimum–maximum envelope; hover a chart to inspect that bucket’s values. The trend section is hidden automatically when Recorder history is unavailable. Disable it with `show_history: false`.
+### History graphs
 
-Each release bundles [uPlot](https://github.com/leeoniya/uPlot) (MIT License) for the interactive trend charts. Development dependencies are defined in `package.json`; run `npm ci && npm run build` after changing the authored source files in the repository root to create a local `dist/ha-poolsensor.js`.
+The card intentionally focuses on current water status and remains compact on mobile. For responsive trends, use Home Assistant’s native `statistics-graph` below it. It uses Recorder statistics and can show the minimum, maximum, and mean for sensors with long-term statistics.
+
+```yaml
+type: statistics-graph
+title: Pool temperatures
+chart_type: line
+days_to_show: 1
+period: 5minute
+stat_types:
+  - min
+  - max
+  - mean
+entities:
+  - sensor.pool_temperature
+  - sensor.outdoor_temperature
+```
+
+For pH and free chlorine, create separate statistics graphs because they use different units and practical scales. Development dependencies are defined in `package.json`; run `npm ci && npm run build` after changing the authored source files in the repository root to create a local `dist/ha-poolsensor.js`.
 
 ### Renovate
 
