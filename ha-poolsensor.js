@@ -2,7 +2,7 @@ import { TRANSLATIONS, LANGUAGE_OPTIONS, translate } from './translations.js';
 
 const MEASUREMENTS = ['ph', 'free_chlorine', 'orp', 'temperature', 'salinity', 'tds', 'ec'];
 const EQUIPMENT = [
-  { key: 'filter', powerKey: 'filter_power', icon: 'mdi:water-filter' },
+  { key: 'filter', powerKey: 'filter_power', icon: 'mdi:air-filter' },
   { key: 'heating', powerKey: 'heating_power', icon: 'mdi:radiator' },
 ];
 const AMBIENT_TEMPERATURE = 'ambient_temperature';
@@ -104,6 +104,7 @@ class PoolWaterQualityCard extends HTMLElement {
       .range-meter { grid-column: 1 / -1; display: block; }
       .range-track { position: relative; width: 100%; height: 6px; border-radius: 99px; background: linear-gradient(to right, color-mix(in srgb, var(--error-color) 46%, transparent) 0%, color-mix(in srgb, var(--error-color) 34%, var(--success-color)) var(--good-start), color-mix(in srgb, var(--success-color) 38%, transparent) var(--good-middle), color-mix(in srgb, var(--error-color) 34%, var(--success-color)) var(--good-end), color-mix(in srgb, var(--error-color) 46%, transparent) 100%); }
       .range-marker { position: absolute; top: 50%; left: var(--marker-position); width: 10px; height: 10px; border: 2px solid var(--card-background-color); border-radius: 50%; background: var(--primary-text-color); box-sizing: border-box; transform: translate(-50%, -50%); }
+      .range-marker-offscale { width: auto; height: auto; border: 0; border-radius: 0; background: transparent; color: var(--warning-color); font-size: 1.35em; font-weight: 700; line-height: 1; }
       .range-label { display: block; margin-top: 2px; color: var(--secondary-text-color); font-size: 0.78em; text-align: right; }
       .ambient-context { color: var(--secondary-text-color); font-size: 0.78em; font-weight: 400; white-space: nowrap; }
       .overall-guidance { margin: 0 14px 8px; font-size: 0.86em; line-height: 1.3; color: var(--secondary-text-color); padding: 5px 7px; border-left: 3px solid var(--warning-color); background: color-mix(in srgb, var(--warning-color) 10%, transparent); }
@@ -359,15 +360,14 @@ class PoolWaterQualityCard extends HTMLElement {
       return null;
     }
 
-    const span = range.max - range.min;
-    const defaultMin = range.min - span / 2;
-    const defaultMax = range.max + span / 2;
-    // Expand the visible scale for extreme readings. This keeps the actual
-    // marker in its below/above region instead of pinning it to an endpoint.
-    const displayMin = Math.min(defaultMin, value - (span * 0.15));
-    const displayMax = Math.max(defaultMax, value + (span * 0.15));
-    const toPercent = (number) => Math.max(0, Math.min(100,
-      ((number - displayMin) / (displayMax - displayMin)) * 100));
+    const targetHalfSpan = (range.max - range.min) / 2;
+    const targetMidpoint = (range.min + range.max) / 2;
+    // All bars share this relative scale: the target occupies 40–60%, and
+    // every 10% beyond it represents one additional target half-range.
+    const normalized = (value - targetMidpoint) / targetHalfSpan;
+    const rawPosition = 50 + (normalized * 10);
+    const isOffScale = rawPosition < 0 || rawPosition > 100;
+    const markerPosition = Math.max(0, Math.min(100, rawPosition));
 
     const meter = document.createElement('div');
     meter.className = 'range-meter';
@@ -376,13 +376,16 @@ class PoolWaterQualityCard extends HTMLElement {
     track.className = 'range-track';
     track.title = `${this._t('target')}: ${range.label}`;
     track.setAttribute('aria-label', track.title);
-    track.style.setProperty('--good-start', `${toPercent(range.min)}%`);
-    track.style.setProperty('--good-end', `${toPercent(range.max)}%`);
-    track.style.setProperty('--good-middle', `${toPercent((range.min + range.max) / 2)}%`);
-    track.style.setProperty('--marker-position', `${toPercent(value)}%`);
+    track.style.setProperty('--good-start', '40%');
+    track.style.setProperty('--good-end', '60%');
+    track.style.setProperty('--good-middle', '50%');
+    track.style.setProperty('--marker-position', `${markerPosition}%`);
 
     const marker = document.createElement('span');
-    marker.className = 'range-marker';
+    marker.className = isOffScale ? 'range-marker range-marker-offscale' : 'range-marker';
+    if (isOffScale) {
+      marker.textContent = rawPosition < 0 ? '←' : '→';
+    }
     track.appendChild(marker);
 
     const label = document.createElement('span');

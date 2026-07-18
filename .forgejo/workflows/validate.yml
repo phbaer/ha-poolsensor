@@ -19,3 +19,25 @@ jobs:
         run: |
           node --check ha-poolsensor.js
           node --check translations.js
+
+  release:
+    if: forge.event_name == 'push' && startsWith(forge.ref, 'refs/tags/v')
+    needs: validate
+    runs-on: docker
+    container:
+      image: node:24-bookworm
+    steps:
+      - name: Check out release tag
+        uses: https://data.forgejo.org/actions/checkout@v6
+      - name: Stage release assets
+        run: |
+          mkdir release-assets
+          cp ha-poolsensor.js translations.js release-assets/
+      - name: Create release and upload assets
+        uses: https://code.forgejo.org/actions/forgejo-release@v2
+        with:
+          direction: upload
+          release-dir: release-assets
+          tag: ${{ forge.ref_name }}
+          title: ${{ forge.ref_name }}
+          token: ${{ forge.token }}

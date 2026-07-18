@@ -63,7 +63,7 @@ ranges:
 
 Each configured target is displayed as a range bar: the green centre is the target region, the faded red sections are outside it, and the dot is the current reading. Measurements without a configured entity are omitted. Values are read directly from Home Assistant and are never persisted or modified by the card.
 
-Range bars expand automatically for extreme readings, keeping the marker visible in the correct below/above region rather than clipping it at either end.
+All range bars share one normalized scale: the configured target always occupies the central 40–60% of the bar, so equal relative deviations look equal across pH, chlorine, ORP, and other measurements. Readings beyond the displayed scale use a directional arrow at the relevant edge; the exact value remains visible beside the bar.
 
 The default targets are pH (6.5–7.3), free chlorine (0.3–0.6 mg/L), ORP (650–750 mV), and a temperature comfort range (24–30 °C). The pH/free-chlorine pair follows [German Federal Environment Agency guidance](https://www.umweltbundesamt.de/sites/default/files/medien/419/dokumente/49_s_926-937_hygieneanforderungen_an_baeder.pdf). It is not an EU-wide legal limit: set your own range for local rules, stabiliser use, pool type, and equipment instructions. Salinity, TDS, and EC have no default target: configure them only from your chlorinator manual, pool type, and source-water test results, using the same unit as the entity. ORP is a supporting signal, not a chemical-dosing target by itself.
 
