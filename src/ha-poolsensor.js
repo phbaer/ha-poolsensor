@@ -722,8 +722,8 @@ class PoolWaterQualityCard extends HTMLElement {
         data.push(item.points.map((point) => point.max ?? point.value));
         data.push(item.points.map((point) => point.median ?? point.value));
         plotSeries.push(
-          { label: `${item.label} min`, band: true, stroke: 'transparent', fill: this._transparentColor(color), show: true },
-          { label: `${item.label} max`, band: true, stroke: 'transparent', fill: this._transparentColor(color), show: true },
+          { label: `${item.label} min`, band: true, stroke: 'transparent', fill: this._transparentColor(color), points: { show: false }, show: true },
+          { label: `${item.label} max`, band: true, stroke: 'transparent', fill: this._transparentColor(color), points: { show: false }, show: true },
           {
             label: item.label,
             stroke: color,
@@ -741,6 +741,7 @@ class PoolWaterQualityCard extends HTMLElement {
         height: 150,
         pxAlign: true,
         legend: { show: false },
+        cursor: { points: { show: false } },
         series: plotSeries,
         scales: { y: { range: yRange } },
         axes: [

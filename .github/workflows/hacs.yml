@@ -40,7 +40,7 @@ jobs:
         with:
           category: plugin
           # GitHub repository metadata and Home Assistant Brands are external.
-          ignore: brands images license topics
+          ignore: brands images topics
 
   release:
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
