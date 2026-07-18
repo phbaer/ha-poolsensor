@@ -10,6 +10,15 @@ const AMBIENT_TEMPERATURE = 'ambient_temperature';
 const EDITOR_FIELDS = ['title', 'language', ...MEASUREMENTS, AMBIENT_TEMPERATURE, ...EQUIPMENT.flatMap(({ key, powerKey }) => [key, powerKey])];
 const QUALITY_LABELS = { en: 'Quality', de: 'Qualität', fr: 'Qualité', it: 'Qualità', es: 'Calidad' };
 
+const configSignature = (value) => {
+  if (Array.isArray(value)) {
+    return `[${value.map(configSignature).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${configSignature(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+};
 
 // The default pH/free-chlorine pair follows German public-pool guidance.
 // Salinity, TDS, and EC targets depend on the chlorinator, source water, and
@@ -947,11 +956,19 @@ customElements.define('poolsensor-water-quality-card', PoolWaterQualityCard);
 
 class PoolWaterQualityCardEditor extends HTMLElement {
   setConfig(config) {
-    this._config = { language: 'en', ...(config.entities || {}), ...config };
+    const nextConfig = { language: 'en', ...(config.entities || {}), ...config };
     if (this._form) {
-      this._form.data = this._config;
+      // Home Assistant calls setConfig again after config-changed. Assigning
+      // the same data back to ha-form can emit another value-changed event,
+      // which eventually makes the visual editor unresponsive.
+      const changed = configSignature(nextConfig) !== configSignature(this._config);
+      this._config = nextConfig;
+      if (changed) {
+        this._form.data = nextConfig;
+      }
       return;
     }
+    this._config = nextConfig;
     this._render();
   }
 
