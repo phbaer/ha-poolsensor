@@ -11,12 +11,11 @@ const EQUIPMENT = [
 const AMBIENT_TEMPERATURE = 'ambient_temperature';
 const HISTORY_FIELDS = ['show_history'];
 const HISTORY_BUCKETS = 72;
-const HISTORY_NORMALIZED_LIMIT = 3;
 const HISTORY_LIMITS = {
   temperature: { min: 16, max: 35 },
   ambient_temperature: { min: 16, max: 40 },
   ph: { min: 5.5, max: 9.5 },
-  free_chlorine: { min: 0, max: 10 },
+  free_chlorine: { min: 0, max: 3 },
 };
 const EDITOR_FIELDS = ['title', 'language', ...MEASUREMENTS, AMBIENT_TEMPERATURE, ...HISTORY_FIELDS, ...EQUIPMENT.flatMap(({ key, powerKey }) => [key, powerKey])];
 const QUALITY_LABELS = { en: 'Quality', de: 'Qualität', fr: 'Qualité', it: 'Qualità', es: 'Calidad' };
@@ -553,28 +552,32 @@ class PoolWaterQualityCard extends HTMLElement {
 
     const qualitySeries = ['ph', 'free_chlorine'].map((key) => {
       const range = this._getRange(key);
-      const midpoint = range ? (range.min + range.max) / 2 : null;
-      const halfSpan = range ? (range.max - range.min) / 2 : null;
       return {
         key,
         className: key === 'ph' ? 'history-ph' : 'history-chlorine',
         label: this._t(key),
         points: this._getHistoryPoints(this.config[key], HISTORY_LIMITS[key]),
         range,
-        midpoint,
-        halfSpan,
+        scale: key === 'free_chlorine' ? 'chlorine' : 'y',
       };
     }).filter((series) => series.range && series.points.length);
     if (qualitySeries.length) {
+      const phSeries = qualitySeries.find((series) => series.key === 'ph');
+      const chlorineSeries = qualitySeries.find((series) => series.key === 'free_chlorine');
+      const chlorineUnit = this._getState(this.config.free_chlorine)?.attributes?.unit_of_measurement || 'mg/L';
       section.appendChild(this._createHistoryChart({
         label: qualitySeries.map((series) => series.label).join(' · '),
-        detail: this._t('normalized_target'),
-        series: qualitySeries.map((series) => ({
-          ...series,
-          points: series.points.map((point) => this._normalizeHistoryPoint(point, series)),
-        })),
-        target: true,
-        yRange: [-HISTORY_NORMALIZED_LIMIT, HISTORY_NORMALIZED_LIMIT],
+        detail: chlorineUnit,
+        series: qualitySeries,
+        yRange: phSeries ? this._getHistoryScale(phSeries.points.map((point) => point.median), { ...HISTORY_LIMITS.ph, minimumSpan: 0.5 }) : null,
+        chartOptions: chlorineSeries ? {
+          scales: {
+            chlorine: {
+              range: this._getHistoryScale(chlorineSeries.points.map((point) => point.median), { ...HISTORY_LIMITS.free_chlorine, minimumSpan: 0.3 }),
+            },
+          },
+          rightAxis: { scale: 'chlorine', side: 1, grid: { show: false } },
+        } : null,
       }));
     }
     return section.children.length > 1 ? section : null;
@@ -624,28 +627,6 @@ class PoolWaterQualityCard extends HTMLElement {
     });
   }
 
-  _normalizeHistoryPoint(point, series) {
-    const normalize = (value) => (value - series.midpoint) / series.halfSpan;
-    const median = normalize(point.median);
-    const isVisible = Math.abs(median) <= HISTORY_NORMALIZED_LIMIT;
-    const min = normalize(point.min);
-    const max = normalize(point.max);
-    return {
-      ...point,
-      rawMin: point.min,
-      rawMax: point.max,
-      rawMedian: point.median,
-      // A single bad probe reading must not inflate the min/max envelope or
-      // flatten the rest of the chart. Keep the bucket median and discard
-      // only the outlying edge of its envelope.
-      min: !isVisible ? null : Math.abs(min) <= HISTORY_NORMALIZED_LIMIT ? min : median,
-      max: !isVisible ? null : Math.abs(max) <= HISTORY_NORMALIZED_LIMIT ? max : median,
-      median: isVisible ? median : null,
-      value: isVisible ? median : null,
-      normalized: median,
-    };
-  }
-
   _getHistoryScale(values, { min, max, minimumSpan }) {
     const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
     if (!sorted.length) {
@@ -664,7 +645,7 @@ class PoolWaterQualityCard extends HTMLElement {
     ];
   }
 
-  _createHistoryChart({ label, detail, series, target = false, yRange }) {
+  _createHistoryChart({ label, detail, series, target = false, yRange, chartOptions = null }) {
     const chart = document.createElement('div');
     chart.className = 'history-chart';
     const caption = document.createElement('div');
@@ -692,7 +673,7 @@ class PoolWaterQualityCard extends HTMLElement {
     tooltip.className = 'history-tooltip';
     tooltip.hidden = true;
     plot.appendChild(tooltip);
-    this._pendingCharts.push({ plot, tooltip, series, detail, target, yRange });
+    this._pendingCharts.push({ plot, tooltip, series, detail, target, yRange, chartOptions });
     chart.append(caption, plot);
     return chart;
   }
@@ -708,7 +689,7 @@ class PoolWaterQualityCard extends HTMLElement {
       'history-ph': palette.getPropertyValue('--info-color').trim() || palette.getPropertyValue('--primary-color').trim(),
       'history-chlorine': palette.getPropertyValue('--warning-color').trim(),
     };
-    this._pendingCharts.forEach(({ plot, tooltip, series, detail, target, yRange }) => {
+    this._pendingCharts.forEach(({ plot, tooltip, series, detail, target, yRange, chartOptions }) => {
       const data = [series[0].points.map((point) => point.time / 1000)];
       const plotSeries = [{}];
       if (target) {
@@ -722,10 +703,11 @@ class PoolWaterQualityCard extends HTMLElement {
         data.push(item.points.map((point) => point.max ?? point.value));
         data.push(item.points.map((point) => point.median ?? point.value));
         plotSeries.push(
-          { label: `${item.label} min`, band: true, stroke: 'transparent', fill: this._transparentColor(color), points: { show: false }, show: true },
-          { label: `${item.label} max`, band: true, stroke: 'transparent', fill: this._transparentColor(color), points: { show: false }, show: true },
+          { label: `${item.label} min`, scale: item.scale, band: true, stroke: 'transparent', fill: this._transparentColor(color), points: { show: false }, show: true },
+          { label: `${item.label} max`, scale: item.scale, band: true, stroke: 'transparent', fill: this._transparentColor(color), points: { show: false }, show: true },
           {
             label: item.label,
+            scale: item.scale,
             stroke: color,
             width: 2,
             dash: item.className === 'history-ambient' ? [4, 3] : [],
@@ -748,7 +730,7 @@ class PoolWaterQualityCard extends HTMLElement {
           hover: { prox: null },
         },
         series: plotSeries,
-        scales: { y: { range: yRange } },
+        scales: yRange ? { y: { range: yRange } } : {},
         axes: [
           { stroke: palette.getPropertyValue('--secondary-text-color').trim(), grid: { stroke: palette.getPropertyValue('--divider-color').trim() } },
           { stroke: palette.getPropertyValue('--secondary-text-color').trim(), grid: { stroke: palette.getPropertyValue('--divider-color').trim() } },
@@ -767,6 +749,15 @@ class PoolWaterQualityCard extends HTMLElement {
           tooltip.hidden = false;
         }] },
       };
+      if (chartOptions?.scales) {
+        Object.assign(options.scales, chartOptions.scales);
+      }
+      if (chartOptions?.rightAxis) {
+        options.axes.push({
+          stroke: palette.getPropertyValue('--secondary-text-color').trim(),
+          ...chartOptions.rightAxis,
+        });
+      }
       const chart = new uPlot(options, data, plot);
       this._plots.push(chart);
       const observer = new ResizeObserver(([entry]) => {
