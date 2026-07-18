@@ -19,7 +19,7 @@ resources:
 
 ### Manual installation
 
-Copy [`ha-poolsensor.js`](ha-poolsensor.js) and [`translations.js`](translations.js) to `config/www/`, then add `/local/ha-poolsensor.js` as a `module` resource.
+Copy [`ha-poolsensor.js`](ha-poolsensor.js), [`translations.js`](translations.js), and [`uPlot.esm.js`](uPlot.esm.js) to `config/www/`, then add `/local/ha-poolsensor.js` as a `module` resource.
 
 ### Lovelace card
 
@@ -48,7 +48,9 @@ The optional filter/heating badges use icons and color to show on/off state; `fi
 
 `ambient_temperature` is optional. It is shown beside the water-temperature reading and, when water temperature is configured, includes the water–air temperature difference. It does not affect the water-quality grade.
 
-When `show_history` is enabled (the default), the card also requests the previous 24 hours from Home Assistant Recorder. It shows water and ambient temperatures together in °C, plus pH and free chlorine on a separate timeline normalized to their configured target ranges. The trend section is hidden automatically when Recorder history is unavailable. Disable it with `show_history: false`.
+When `show_history` is enabled (the default), the card also requests the previous 24 hours from Home Assistant Recorder. It shows water and ambient temperatures together in °C, plus pH and free chlorine on a separate timeline normalized to their configured target ranges. Each 20-minute bucket is shown as a median line with a faded minimum–maximum envelope; hover a chart to inspect that bucket’s values. The trend section is hidden automatically when Recorder history is unavailable. Disable it with `show_history: false`.
+
+The card bundles [uPlot](https://github.com/leeoniya/uPlot) (MIT License) for the interactive trend charts.
 
 ## Customization
 

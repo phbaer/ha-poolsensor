@@ -33,6 +33,7 @@ jobs:
         run: |
           node --check ha-poolsensor.js
           node --check translations.js
+          node --check uPlot.esm.js
       - uses: hacs/action@main
         with:
           category: plugin
@@ -55,3 +56,4 @@ jobs:
           files: |
             ha-poolsensor.js
             translations.js
+            uPlot.esm.js

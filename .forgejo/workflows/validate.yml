@@ -19,6 +19,7 @@ jobs:
         run: |
           node --check ha-poolsensor.js
           node --check translations.js
+          node --check uPlot.esm.js
 
   release:
     if: forge.event_name == 'push' && startsWith(forge.ref, 'refs/tags/v')
@@ -32,7 +33,7 @@ jobs:
       - name: Stage release assets
         run: |
           mkdir release-assets
-          cp ha-poolsensor.js translations.js release-assets/
+          cp ha-poolsensor.js translations.js uPlot.esm.js release-assets/
       - name: Create release and upload assets
         uses: https://code.forgejo.org/actions/forgejo-release@v2
         with:

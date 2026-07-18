@@ -1,6 +1,7 @@
 // Keep this cache-buster in sync whenever translations.js changes. Home
 // Assistant refreshes the card resource independently from its submodules.
 import { TRANSLATIONS, LANGUAGE_OPTIONS, translate } from './translations.js?v=20260718';
+import uPlot from './uPlot.esm.js?v=1.6.32';
 
 const MEASUREMENTS = ['ph', 'free_chlorine', 'orp', 'temperature', 'salinity', 'tds', 'ec'];
 const EQUIPMENT = [
@@ -85,6 +86,10 @@ class PoolWaterQualityCard extends HTMLElement {
       return;
     }
 
+    this._plots?.forEach((plot) => plot.destroy());
+    this._plots = [];
+    this._pendingCharts = [];
+
     this._fields = MEASUREMENTS
       .map((key) => ({ key, label: this._t(key), entity: this.config[key] }))
       .filter((item) => item.entity);
@@ -127,6 +132,16 @@ class PoolWaterQualityCard extends HTMLElement {
       .history-swatch.history-ph { color: var(--info-color, var(--primary-color)); }
       .history-swatch.history-chlorine { color: var(--warning-color); }
       .history-chart svg { display: block; width: 100%; height: 58px; overflow: visible; }
+      .history-plot { position: relative; min-height: 150px; }
+      .uplot, .uplot * { box-sizing: border-box; }
+      .uplot { font-family: var(--paper-font-body1_-_font-family, sans-serif); font-size: .75em; }
+      .u-wrap, .u-over, .u-under { position: absolute; }
+      .u-wrap { position: relative; user-select: none; }
+      .u-over, .u-under { position: absolute; }
+      .uplot canvas { display: block; }
+      .u-axis { position: absolute; color: var(--secondary-text-color); }
+      .u-cursor-x { position: absolute; top: 0; height: 100%; border-left: 1px dashed var(--secondary-text-color); pointer-events: none; }
+      .history-tooltip { position: absolute; z-index: 2; top: 4px; right: 4px; max-width: calc(100% - 8px); padding: 3px 5px; border-radius: 4px; background: color-mix(in srgb, var(--card-background-color) 92%, transparent); color: var(--primary-text-color); font-size: .72em; pointer-events: none; }
       .history-grid { stroke: var(--divider-color); stroke-width: 1; opacity: .7; }
       .history-target { fill: var(--success-color); opacity: .14; }
       .history-water { fill: none; stroke: var(--primary-color); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -229,6 +244,8 @@ class PoolWaterQualityCard extends HTMLElement {
       guidance.textContent = `${this._t('recommendation')}: ${overallGuidance}`;
       card.appendChild(guidance);
     }
+
+    queueMicrotask(() => this._renderHistoryCharts());
 
     this.innerHTML = '';
     this.appendChild(card);
@@ -550,7 +567,14 @@ class PoolWaterQualityCard extends HTMLElement {
           ...series,
           points: series.points.map((point) => ({
             ...point,
-            normalized: (point.value - series.midpoint) / series.halfSpan,
+            rawMin: point.min,
+            rawMax: point.max,
+            rawMedian: point.median,
+            min: (point.min - series.midpoint) / series.halfSpan,
+            max: (point.max - series.midpoint) / series.halfSpan,
+            median: (point.median - series.midpoint) / series.halfSpan,
+            value: (point.median - series.midpoint) / series.halfSpan,
+            normalized: (point.median - series.midpoint) / series.halfSpan,
           })),
         })),
         target: true,
@@ -588,10 +612,18 @@ class PoolWaterQualityCard extends HTMLElement {
         values.push(lastValue);
         readingIndex += 1;
       }
+      let min = lastValue;
+      let max = lastValue;
+      let median = lastValue;
       if (values.length) {
-        lastValue = values.reduce((sum, value) => sum + value, 0) / values.length;
+        const sorted = [...values].sort((a, b) => a - b);
+        min = sorted[0];
+        max = sorted[sorted.length - 1];
+        const middle = Math.floor(sorted.length / 2);
+        median = sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+        lastValue = median;
       }
-      return { time: bucketEnd, value: lastValue };
+      return { time: bucketEnd, value: lastValue, min, max, median };
     });
   }
 
@@ -615,39 +647,83 @@ class PoolWaterQualityCard extends HTMLElement {
     const detailLabel = document.createElement('span');
     detailLabel.textContent = detail;
     caption.append(legend, detailLabel);
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 240 56');
-    svg.setAttribute('preserveAspectRatio', 'none');
-    svg.setAttribute('role', 'img');
-    svg.setAttribute('aria-label', `${label}, ${this._t('history_24h')}`);
-    if (target) {
-      const band = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      band.setAttribute('class', 'history-target');
-      band.setAttribute('x', '0');
-      band.setAttribute('y', '22.4');
-      band.setAttribute('width', '240');
-      band.setAttribute('height', '11.2');
-      svg.appendChild(band);
-    }
-    const midline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    midline.setAttribute('class', 'history-grid');
-    midline.setAttribute('x1', '0');
-    midline.setAttribute('x2', '240');
-    midline.setAttribute('y1', '28');
-    midline.setAttribute('y2', '28');
-    svg.appendChild(midline);
-    series.forEach((item) => {
-      const pathData = item.points.map((point, index) => {
-        const x = Math.max(0, Math.min(240, ((point.time - this._historyWindow.start) / (this._historyWindow.end - this._historyWindow.start)) * 240));
-        return `${index ? 'L' : 'M'}${x.toFixed(1)} ${valueToY(point.value, point).toFixed(1)}`;
-      }).join(' ');
-      const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      line.setAttribute('class', item.className);
-      line.setAttribute('d', pathData);
-      svg.appendChild(line);
-    });
-    chart.append(caption, svg);
+    const plot = document.createElement('div');
+    plot.className = 'history-plot';
+    plot.setAttribute('role', 'img');
+    plot.setAttribute('aria-label', `${label}, ${this._t('history_24h')}`);
+    const tooltip = document.createElement('div');
+    tooltip.className = 'history-tooltip';
+    tooltip.hidden = true;
+    plot.appendChild(tooltip);
+    this._pendingCharts.push({ plot, tooltip, series, detail, target });
+    chart.append(caption, plot);
     return chart;
+  }
+
+  _renderHistoryCharts() {
+    if (!uPlot || !this._pendingCharts?.length) {
+      return;
+    }
+    const palette = getComputedStyle(this);
+    const colors = {
+      'history-water': palette.getPropertyValue('--primary-color').trim(),
+      'history-ambient': palette.getPropertyValue('--secondary-text-color').trim(),
+      'history-ph': palette.getPropertyValue('--info-color').trim() || palette.getPropertyValue('--primary-color').trim(),
+      'history-chlorine': palette.getPropertyValue('--warning-color').trim(),
+    };
+    this._pendingCharts.forEach(({ plot, tooltip, series, detail, target }) => {
+      const data = [series[0].points.map((point) => point.time / 1000)];
+      const plotSeries = [{}];
+      if (target) {
+        data.push(data[0].map(() => -1), data[0].map(() => 1));
+        plotSeries.push({ label: '', band: true, stroke: 'transparent', fill: 'rgba(76, 175, 80, .14)', show: true }, { label: '', band: true, stroke: 'transparent', fill: 'rgba(76, 175, 80, .14)', show: true });
+      }
+      const tooltipRows = [];
+      series.forEach((item) => {
+        const color = colors[item.className] || palette.getPropertyValue('--primary-color').trim();
+        data.push(item.points.map((point) => point.min ?? point.value));
+        data.push(item.points.map((point) => point.max ?? point.value));
+        data.push(item.points.map((point) => point.median ?? point.value));
+        plotSeries.push(
+          { label: `${item.label} min`, band: true, stroke: 'transparent', fill: this._transparentColor(color), show: true },
+          { label: `${item.label} max`, band: true, stroke: 'transparent', fill: this._transparentColor(color), show: true },
+          { label: item.label, stroke: color, width: 2, dash: item.className === 'history-ambient' ? [4, 3] : [], value: (_, value) => value == null ? '' : value.toFixed(2) },
+        );
+        tooltipRows.push(item);
+      });
+      const options = {
+        width: Math.max(220, plot.clientWidth),
+        height: 150,
+        legend: { show: false },
+        series: plotSeries,
+        axes: [{ stroke: palette.getPropertyValue('--secondary-text-color').trim(), grid: { stroke: palette.getPropertyValue('--divider-color').trim() } }, { stroke: palette.getPropertyValue('--secondary-text-color').trim(), grid: { stroke: palette.getPropertyValue('--divider-color').trim() } }],
+        hooks: { setCursor: [(u) => {
+          const index = u.cursor.idx;
+          if (index == null || index < 0) { tooltip.hidden = true; return; }
+          const when = new Date(data[0][index] * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          tooltip.textContent = `${when} · ${tooltipRows.map((item) => {
+            const point = item.points[index];
+            const median = target ? point.rawMedian : point.median;
+            const min = target ? point.rawMin : point.min;
+            const max = target ? point.rawMax : point.max;
+            return `${item.label}: ${median.toFixed(2)} (${min.toFixed(2)}–${max.toFixed(2)})`;
+          }).join(' · ')}`;
+          tooltip.hidden = false;
+        }] },
+      };
+      this._plots.push(new uPlot(options, data, plot));
+    });
+    this._pendingCharts = [];
+  }
+
+  _transparentColor(color, alpha = 0.16) {
+    const hex = color.trim();
+    if (/^#[0-9a-f]{6}$/i.test(hex)) {
+      const value = Number.parseInt(hex.slice(1), 16);
+      return `rgba(${value >> 16}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
+    }
+    const match = hex.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/i);
+    return match ? `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${alpha})` : `rgba(128, 128, 128, ${alpha})`;
   }
 
   _createAmbientContext() {
