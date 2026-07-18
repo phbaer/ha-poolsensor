@@ -35,6 +35,7 @@ class PoolWaterQualityCard extends HTMLElement {
     super();
     this._fields = [];
     this._plotResizers = [];
+    this._hassSignature = null;
   }
 
   static getConfigElement() {
@@ -70,7 +71,11 @@ class PoolWaterQualityCard extends HTMLElement {
         critical_ranges: config.grading?.critical_ranges || {},
       },
     };
-    this._loadHistory();
+    if (this._hass) {
+      this._hassSignature = this._getHassSignature(this._hass);
+      this._loadHistory();
+      this.render();
+    }
   }
 
   _t(key, values) {
@@ -83,8 +88,28 @@ class PoolWaterQualityCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    const signature = this._getHassSignature(hass);
+    if (signature === this._hassSignature) {
+      return;
+    }
+    this._hassSignature = signature;
     this._loadHistory();
     this.render();
+  }
+
+  _getHassSignature(hass) {
+    if (!this.config) {
+      return null;
+    }
+    const entityIds = [
+      ...MEASUREMENTS.map((key) => this.config[key]),
+      this.config[AMBIENT_TEMPERATURE],
+      ...EQUIPMENT.flatMap(({ key, powerKey }) => [this.config[key], this.config[powerKey]]),
+    ].filter(Boolean);
+    return entityIds.map((entityId) => {
+      const state = hass.states[entityId];
+      return [entityId, state?.state, state?.attributes?.unit_of_measurement].join('|');
+    }).join('\n');
   }
 
   render() {
