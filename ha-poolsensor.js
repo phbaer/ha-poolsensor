@@ -280,6 +280,9 @@ class PoolWaterQualityCard extends HTMLElement {
   }
 
   _getState(entity) {
+    if (!entity || !this._hass?.states) {
+      return null;
+    }
     return this._hass.states[entity] || null;
   }
 
@@ -806,7 +809,12 @@ class PoolWaterQualityCard extends HTMLElement {
   */
 
   _createAmbientContext() {
-    const state = this._getState(this.config[AMBIENT_TEMPERATURE]);
+    const ambientEntity = this.config[AMBIENT_TEMPERATURE];
+    if (!ambientEntity) {
+      return null;
+    }
+
+    const state = this._getState(ambientEntity);
     const ambient = this._normalizeValue(this._getValue(state));
     if (ambient === null) {
       return null;
