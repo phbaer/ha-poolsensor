@@ -6,11 +6,11 @@ export const EQUIPMENT_TRANSLATIONS = {
   es: { filter: 'Filtración', filter_power: 'Potencia del filtro', heating: 'Calefacción', heating_power: 'Potencia de calefacción', on: 'Encendido', off: 'Apagado' },
 };
 export const CONTEXT_TRANSLATIONS = {
-  en: { ambient_temperature: 'Ambient temperature', balance_profile: 'Water balance profile', water_air_delta: 'Water − air' },
-  de: { ambient_temperature: 'Umgebungstemperatur', balance_profile: 'Wasserbalance-Profil', water_air_delta: 'Wasser − Luft' },
-  fr: { ambient_temperature: 'Température ambiante', balance_profile: 'Profil d’équilibre de l’eau', water_air_delta: 'Eau − air' },
-  it: { ambient_temperature: 'Temperatura ambiente', balance_profile: 'Profilo di equilibrio dell’acqua', water_air_delta: 'Acqua − aria' },
-  es: { ambient_temperature: 'Temperatura ambiente', balance_profile: 'Perfil de equilibrio del agua', water_air_delta: 'Agua − aire' },
+  en: { ambient_temperature: 'Ambient temperature', water_air_delta: 'Water − air' },
+  de: { ambient_temperature: 'Umgebungstemperatur', water_air_delta: 'Wasser − Luft' },
+  fr: { ambient_temperature: 'Température ambiante', water_air_delta: 'Eau − air' },
+  it: { ambient_temperature: 'Temperatura ambiente', water_air_delta: 'Acqua − aria' },
+  es: { ambient_temperature: 'Temperatura ambiente', water_air_delta: 'Agua − aire' },
 };
 export const TRANSLATIONS = {
   en: {
