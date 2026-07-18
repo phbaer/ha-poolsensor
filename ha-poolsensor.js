@@ -1,17 +1,12 @@
-const MEASUREMENTS = [
-  { key: 'ph', label: 'pH' },
-  { key: 'free_chlorine', label: 'Free chlorine' },
-  { key: 'orp', label: 'ORP' },
-  { key: 'temperature', label: 'Temperature' },
-  { key: 'salinity', label: 'Salinity' },
-  { key: 'tds', label: 'TDS' },
-  { key: 'ec', label: 'EC' },
-];
+import { TRANSLATIONS, LANGUAGE_OPTIONS, translate } from './translations.js';
 
-const FIELD_LABELS = {
-  title: 'Title',
-  ...Object.fromEntries(MEASUREMENTS.map(({ key, label }) => [key, label])),
-};
+const MEASUREMENTS = ['ph', 'free_chlorine', 'orp', 'temperature', 'salinity', 'tds', 'ec'];
+const EQUIPMENT = [
+  { key: 'filter', powerKey: 'filter_power' },
+  { key: 'heating', powerKey: 'heating_power' },
+];
+const EDITOR_FIELDS = ['title', 'language', ...MEASUREMENTS, ...EQUIPMENT.flatMap(({ key, powerKey }) => [key, powerKey])];
+
 
 // The default pH/free-chlorine pair follows German public-pool guidance.
 // Salinity, TDS, and EC targets depend on the chlorinator, source water, and
@@ -21,37 +16,6 @@ const DEFAULT_RANGES = {
   free_chlorine: '0.3 - 0.6',
   orp: '650 - 750',
   temperature: '24 - 30',
-};
-
-const DEFAULT_GUIDANCE = {
-  ph: {
-    low: 'pH is low. Confirm with a drop test, then use a pool-specific pH increaser according to its label. Retest before making another adjustment.',
-    high: 'pH is high. Confirm with a drop test, then use a pool-specific pH reducer according to its label. Retest before making another adjustment.',
-  },
-  free_chlorine: {
-    low: 'Free chlorine is low. Confirm with a DPD test, then raise it with your chlorinator or a labelled chlorine product. Circulate and retest.',
-    high: 'Free chlorine is high. Pause chlorination and retest before swimming; follow the chemical label and local guidance.',
-  },
-  orp: {
-    low: 'ORP is low. Verify pH and free chlorine with a reliable test and correct those values rather than dosing from ORP alone.',
-    high: 'ORP is high. Verify free chlorine and pH with a reliable test before changing chlorinator settings.',
-  },
-  temperature: {
-    low: 'Temperature is below the configured comfort target. Adjust heating if your pool has it.',
-    high: 'Temperature is above the configured comfort target. Reduce heating or adjust cover use as appropriate.',
-  },
-  salinity: {
-    low: 'Salinity is below your configured target. Follow your salt chlorinator manufacturer’s instructions before adding salt.',
-    high: 'Salinity is above your configured target. Follow your chlorinator manufacturer’s instructions; dilution may be required.',
-  },
-  tds: {
-    low: 'TDS is outside your configured target. Use it as a trend indicator and confirm overall balance with a proper water test.',
-    high: 'TDS is outside your configured target. Use it as a trend indicator and confirm overall balance with a proper water test.',
-  },
-  ec: {
-    low: 'EC is outside your configured target. Check probe calibration and use a proper water test before adjusting chemicals.',
-    high: 'EC is outside your configured target. Check probe calibration and use a proper water test before adjusting chemicals.',
-  },
 };
 
 class PoolWaterQualityCard extends HTMLElement {
@@ -65,7 +29,7 @@ class PoolWaterQualityCard extends HTMLElement {
   }
 
   static getStubConfig() {
-    return { title: 'Pool Water Quality' };
+    return { title: TRANSLATIONS.en.card_title };
   }
 
   setConfig(config) {
@@ -73,10 +37,16 @@ class PoolWaterQualityCard extends HTMLElement {
       throw new Error('Configuration required');
     }
 
+    const language = TRANSLATIONS[config.language] ? config.language : 'en';
     const entities = config.entities || {};
     this.config = {
-      title: config.title || 'Pool Water Quality',
-      ...Object.fromEntries(MEASUREMENTS.map(({ key }) => [key, config[key] || entities[key]])),
+      title: config.title || translate(language, 'card_title'),
+      language,
+      ...Object.fromEntries(MEASUREMENTS.map((key) => [key, config[key] || entities[key]])),
+      ...Object.fromEntries(EQUIPMENT.flatMap(({ key, powerKey }) => [
+        [key, config[key] || entities[key]],
+        [powerKey, config[powerKey] || entities[powerKey]],
+      ])),
       ranges: config.ranges || {},
       guidance: config.guidance || {},
       grading: {
@@ -85,6 +55,10 @@ class PoolWaterQualityCard extends HTMLElement {
         critical_ranges: config.grading?.critical_ranges || {},
       },
     };
+  }
+
+  _t(key, values) {
+    return translate(this.config.language, key, values);
   }
 
   getCardSize() {
@@ -102,7 +76,7 @@ class PoolWaterQualityCard extends HTMLElement {
     }
 
     this._fields = MEASUREMENTS
-      .map((measurement) => ({ ...measurement, entity: this.config[measurement.key] }))
+      .map((key) => ({ key, label: this._t(key), entity: this.config[key] }))
       .filter((item) => item.entity);
 
     const card = document.createElement('ha-card');
@@ -133,6 +107,12 @@ class PoolWaterQualityCard extends HTMLElement {
       .range-marker { position: absolute; top: 50%; left: var(--marker-position); width: 10px; height: 10px; border: 2px solid var(--card-background-color); border-radius: 50%; background: var(--primary-text-color); box-sizing: border-box; transform: translate(-50%, -50%); }
       .range-label { color: var(--secondary-text-color); font-size: 0.78em; white-space: nowrap; }
       .overall-guidance { margin: 0 14px 8px; font-size: 0.86em; line-height: 1.3; color: var(--secondary-text-color); padding: 5px 7px; border-left: 3px solid var(--warning-color); background: color-mix(in srgb, var(--warning-color) 10%, transparent); }
+      .equipment { display: grid; gap: 0; padding: 4px 14px 8px; border-top: 1px solid var(--divider-color); }
+      .equipment-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; padding: 4px 0; font-size: 0.9em; }
+      .equipment-state { font-weight: 500; }
+      .equipment-on { color: var(--success-color); }
+      .equipment-off { color: var(--secondary-text-color); }
+      .equipment-power { color: var(--secondary-text-color); font-variant-numeric: tabular-nums; }
     `;
 
     const content = document.createElement('div');
@@ -192,7 +172,7 @@ class PoolWaterQualityCard extends HTMLElement {
       const badge = document.createElement('span');
       badge.className = `grade grade-${grade.value === '—' ? 'unknown' : grade.value.toLowerCase()}`;
       badge.textContent = grade.value;
-      badge.title = `Measured status ${grade.value}: ${grade.reason}`;
+      badge.title = `${grade.value}: ${grade.reason}`;
       badge.setAttribute('aria-label', badge.title);
       header.appendChild(badge);
     }
@@ -200,11 +180,16 @@ class PoolWaterQualityCard extends HTMLElement {
     card.appendChild(header);
     card.appendChild(content);
 
+    const equipment = this._createEquipmentSection();
+    if (equipment) {
+      card.appendChild(equipment);
+    }
+
     const overallGuidance = this._getOverallGuidance();
     if (overallGuidance) {
       const guidance = document.createElement('div');
       guidance.className = 'overall-guidance';
-      guidance.textContent = `Recommended next step: ${overallGuidance}`;
+      guidance.textContent = `${this._t('recommendation')}: ${overallGuidance}`;
       card.appendChild(guidance);
     }
 
@@ -230,6 +215,48 @@ class PoolWaterQualityCard extends HTMLElement {
     }
     const unit = state?.attributes?.unit_of_measurement;
     return unit ? `${value} ${unit}` : value;
+  }
+
+  _createEquipmentSection() {
+    const configured = EQUIPMENT.filter(({ key, powerKey }) => this.config[key] || this.config[powerKey]);
+    if (!configured.length) {
+      return null;
+    }
+
+    const section = document.createElement('div');
+    section.className = 'equipment';
+    configured.forEach(({ key, powerKey }) => {
+      const row = document.createElement('div');
+      row.className = 'equipment-row';
+
+      const label = document.createElement('span');
+      label.textContent = this._t(key);
+      row.appendChild(label);
+
+      if (this.config[key]) {
+        const state = this._getState(this.config[key]);
+        const unavailable = !state || ['unknown', 'unavailable'].includes(String(state.state).toLowerCase());
+        const active = this._isActive(state?.state);
+        const stateLabel = document.createElement('span');
+        stateLabel.className = `equipment-state equipment-${active ? 'on' : 'off'}`;
+        stateLabel.textContent = unavailable ? '—' : this._t(active ? 'on' : 'off');
+        row.appendChild(stateLabel);
+      }
+
+      if (this.config[powerKey]) {
+        const powerState = this._getState(this.config[powerKey]);
+        const power = document.createElement('span');
+        power.className = 'equipment-power';
+        power.textContent = this._formatValue(this._getValue(powerState), powerState);
+        row.appendChild(power);
+      }
+      section.appendChild(row);
+    });
+    return section;
+  }
+
+  _isActive(value) {
+    return ['on', 'open', 'active', 'running', 'true', '1'].includes(String(value).toLowerCase());
   }
 
   _getStatus(fieldKey, rawValue) {
@@ -281,7 +308,7 @@ class PoolWaterQualityCard extends HTMLElement {
 
     const track = document.createElement('div');
     track.className = 'range-track';
-    track.title = `Target: ${range.label}`;
+    track.title = `${this._t('target')}: ${range.label}`;
     track.setAttribute('aria-label', track.title);
     track.style.setProperty('--good-start', `${toPercent(range.min)}%`);
     track.style.setProperty('--good-end', `${toPercent(range.max)}%`);
@@ -293,7 +320,7 @@ class PoolWaterQualityCard extends HTMLElement {
 
     const label = document.createElement('span');
     label.className = 'range-label';
-    label.textContent = `Target: ${range.label}`;
+    label.textContent = `${this._t('target')}: ${range.label}`;
 
     meter.appendChild(track);
     meter.appendChild(label);
@@ -301,13 +328,13 @@ class PoolWaterQualityCard extends HTMLElement {
   }
 
   _getStatusTooltip(fieldKey, rawValue, range, status) {
-    const label = FIELD_LABELS[fieldKey];
+    const label = this._t(fieldKey);
     const value = this._normalizeValue(rawValue);
     if (status === 'unknown') {
-      return `${label}: no valid reading or target configured`;
+      return this._t('unknown', { label });
     }
     const direction = value < range.min ? 'below' : value > range.max ? 'above' : 'within';
-    return `${label}: ${direction} target (${range.label})`;
+    return this._t(direction, { label, range: range.label });
   }
 
   _getOverallGuidance() {
@@ -322,37 +349,39 @@ class PoolWaterQualityCard extends HTMLElement {
     const chlorine = byKey.free_chlorine;
     const ph = byKey.ph;
     if (chlorine?.value < chlorine.range.min) {
-      const phNote = ph ? ' Also correct pH after confirming both readings.' : '';
+      const phNote = ph ? this._t('also_ph') : '';
       return this.config.guidance?.free_chlorine?.low
-        || `${DEFAULT_GUIDANCE.free_chlorine.low}${phNote}`;
+        || `${this._t('chlorine_low')}${phNote}`;
     }
     if (ph) {
       const direction = ph.value < ph.range.min ? 'low' : 'high';
-      return this.config.guidance?.ph?.[direction] || DEFAULT_GUIDANCE.ph[direction];
+      return this.config.guidance?.ph?.[direction] || this._t(`ph_${direction}`);
     }
 
     const priority = ['orp', 'salinity', 'tds', 'ec', 'temperature'];
     const next = priority.find((key) => byKey[key]) || warnings[0];
     const direction = next.value < next.range.min ? 'low' : 'high';
+    const guidanceKey = next.key === 'free_chlorine'
+      ? `chlorine_${direction}`
+      : `${next.key}_${direction}`;
     return this.config.guidance?.[next.key]?.[direction]
-      || DEFAULT_GUIDANCE[next.key]?.[direction]
-      || 'Confirm this reading with a reliable water test before adjusting treatment.';
+      || this._t(guidanceKey);
   }
 
   _getGrade() {
     const primaryKeys = this.config.grading.primary.filter((key) => this.config[key]);
     if (!primaryKeys.includes('ph') || !primaryKeys.includes('free_chlorine')) {
-      return { value: '—', reason: 'configure pH and free chlorine to calculate a grade' };
+      return { value: '—', reason: this._t('grade_missing') };
     }
 
     const primary = primaryKeys.map((key) => this._getMeasurementStatus(key));
     if (primary.some((measurement) => measurement.status === 'unknown')) {
-      return { value: '—', reason: 'waiting for valid pH and free-chlorine readings' };
+      return { value: '—', reason: this._t('grade_waiting') };
     }
 
     const chlorine = primary.find((measurement) => measurement.key === 'free_chlorine');
     if (chlorine.value < chlorine.range.min) {
-      return { value: 'F', reason: 'free chlorine is below its configured minimum' };
+      return { value: 'F', reason: this._t('grade_chlorine_low') };
     }
 
     const critical = primary.find((measurement) => {
@@ -360,15 +389,15 @@ class PoolWaterQualityCard extends HTMLElement {
       return range && (measurement.value < range.min || measurement.value > range.max);
     });
     if (critical) {
-      return { value: 'F', reason: `${FIELD_LABELS[critical.key]} is outside its critical range` };
+      return { value: 'F', reason: this._t('grade_critical', { label: this._t(critical.key) }) };
     }
 
     const primaryWarnings = primary.filter((measurement) => measurement.status === 'warning').length;
     if (primaryWarnings > 1) {
-      return { value: 'D', reason: 'multiple primary readings need attention' };
+      return { value: 'D', reason: this._t('grade_multiple') };
     }
     if (primaryWarnings === 1) {
-      return { value: 'C', reason: 'one primary reading needs attention' };
+      return { value: 'C', reason: this._t('grade_one') };
     }
 
     const supportingWarnings = this._fields
@@ -376,9 +405,9 @@ class PoolWaterQualityCard extends HTMLElement {
       .map((field) => this._getMeasurementStatus(field.key))
       .filter((measurement) => measurement.status === 'warning');
     if (supportingWarnings.length) {
-      return { value: 'B', reason: 'primary readings are on target; a supporting reading needs attention' };
+      return { value: 'B', reason: this._t('grade_support') };
     }
-    return { value: 'A', reason: 'all configured readings with targets are on target' };
+    return { value: 'A', reason: this._t('grade_all') };
   }
 
   _getMeasurementStatus(key) {
@@ -407,7 +436,7 @@ customElements.define('poolsensor-water-quality-card', PoolWaterQualityCard);
 
 class PoolWaterQualityCardEditor extends HTMLElement {
   setConfig(config) {
-    this._config = { ...(config.entities || {}), ...config };
+    this._config = { language: 'en', ...(config.entities || {}), ...config };
     this._render();
   }
 
@@ -424,11 +453,13 @@ class PoolWaterQualityCardEditor extends HTMLElement {
     const form = document.createElement('ha-form');
     form.hass = this._hass;
     form.data = this._config;
-    form.schema = Object.keys(FIELD_LABELS).map((name) => ({
+    form.schema = EDITOR_FIELDS.map((name) => ({
       name,
-      selector: name === 'title' ? { text: {} } : { entity: {} },
+      selector: name === 'title'
+        ? { text: {} }
+        : name === 'language' ? { select: { options: LANGUAGE_OPTIONS } } : { entity: {} },
     }));
-    form.computeLabel = (schema) => FIELD_LABELS[schema.name] || schema.name;
+    form.computeLabel = (schema) => translate(this._config.language || 'en', schema.name);
     form.addEventListener('value-changed', (event) => {
       event.stopPropagation();
       this._config = { ...this._config, ...event.detail.value };

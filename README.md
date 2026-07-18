@@ -19,7 +19,7 @@ resources:
 
 ### Manual installation
 
-Copy [`ha-poolsensor.js`](ha-poolsensor.js) to `config/www/`, then add it as `/local/ha-poolsensor.js` with type `module`.
+Copy [`ha-poolsensor.js`](ha-poolsensor.js) and [`translations.js`](translations.js) to `config/www/`, then add `/local/ha-poolsensor.js` as a `module` resource.
 
 ### Lovelace card
 
@@ -35,7 +35,14 @@ temperature: sensor.pool_temperature
 salinity: sensor.pool_salinity
 tds: sensor.pool_tds
 ec: sensor.pool_ec
+language: de
+filter: switch.pool_filter
+filter_power: sensor.pool_filter_power
+heating: switch.pool_heating
+heating_power: sensor.pool_heating_power
 ```
+
+The optional `filter` and `heating` entities show on/off state; `filter_power` and `heating_power` show the corresponding power sensor and its unit. Equipment state does not affect the water-quality grade.
 
 ## Customization
 
@@ -93,3 +100,7 @@ Set `grading.enabled: false` to hide the grade.
 ## Visual editor
 
 When adding or editing the card from a Home Assistant dashboard, choose **Pool Water Quality Card** and select the title and measurement entities in the visual editor. Range overrides remain available through the YAML editor.
+
+## Languages
+
+Select the card language in the visual editor or set `language` in YAML. Supported values are `en`, `de`, `fr`, `it`, and `es`. This translates the card labels, range/status tooltips, overall recommendation, and grade explanation.
