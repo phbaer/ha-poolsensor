@@ -1,7 +1,7 @@
 // Keep this cache-buster in sync whenever translations.js changes. Home
 // Assistant refreshes the card resource independently from its submodules.
-import { TRANSLATIONS, LANGUAGE_OPTIONS, translate } from './translations.js?v=20260718';
-import uPlot from './uPlot.esm.js?v=1.6.32';
+import { TRANSLATIONS, LANGUAGE_OPTIONS, translate } from './translations.js';
+import uPlot from 'uplot';
 
 const MEASUREMENTS = ['ph', 'free_chlorine', 'orp', 'temperature', 'salinity', 'tds', 'ec'];
 const EQUIPMENT = [

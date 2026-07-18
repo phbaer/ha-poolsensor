@@ -15,11 +15,12 @@ jobs:
     steps:
       - name: Check out repository
         uses: https://data.forgejo.org/actions/checkout@v6
-      - name: Check JavaScript syntax
+      - name: Install build dependencies
+        run: npm ci
+      - name: Build and verify release asset
         run: |
-          node --check ha-poolsensor.js
-          node --check translations.js
-          node --check uPlot.esm.js
+          npm run build
+          node --check dist/ha-poolsensor.js
 
   release:
     if: forge.event_name == 'push' && startsWith(forge.ref, 'refs/tags/v')
@@ -30,10 +31,10 @@ jobs:
     steps:
       - name: Check out release tag
         uses: https://data.forgejo.org/actions/checkout@v6
-      - name: Stage release assets
+      - name: Build release asset
         run: |
-          mkdir release-assets
-          cp ha-poolsensor.js translations.js uPlot.esm.js release-assets/
+          npm ci
+          npm run build -- release-assets/ha-poolsensor.js
       - name: Create release and upload assets
         uses: https://code.forgejo.org/actions/forgejo-release@v2
         with:

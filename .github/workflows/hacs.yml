@@ -29,11 +29,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Check JavaScript syntax
+          cache: npm
+      - name: Install build dependencies
+        run: npm ci
+      - name: Build and verify release asset
         run: |
-          node --check ha-poolsensor.js
-          node --check translations.js
-          node --check uPlot.esm.js
+          npm run build
+          node --check dist/ha-poolsensor.js
       - uses: hacs/action@main
         with:
           category: plugin
@@ -48,12 +50,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build release asset
+        run: |
+          npm ci
+          npm run build -- release-assets/ha-poolsensor.js
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
           target_commitish: ${{ inputs.ref || github.sha }}
           prerelease: ${{ github.event_name == 'workflow_dispatch' || contains(github.ref_name, '-') || contains(github.ref_name, 'b') || contains(github.ref_name, 'rc') }}
           files: |
-            ha-poolsensor.js
-            translations.js
-            uPlot.esm.js
+            release-assets/ha-poolsensor.js

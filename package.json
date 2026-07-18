@@ -1,5 +1,14 @@
 {
   "name": "ha-poolsensor",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "dependencies": {
+    "uplot": "1.6.32"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.0"
+  }
 }
