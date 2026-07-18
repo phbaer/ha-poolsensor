@@ -1,4 +1,6 @@
-import { TRANSLATIONS, LANGUAGE_OPTIONS, translate } from './translations.js';
+// Keep this cache-buster in sync whenever translations.js changes. Home
+// Assistant refreshes the card resource independently from its submodules.
+import { TRANSLATIONS, LANGUAGE_OPTIONS, translate } from './translations.js?v=20260718';
 
 const MEASUREMENTS = ['ph', 'free_chlorine', 'orp', 'temperature', 'salinity', 'tds', 'ec'];
 const EQUIPMENT = [
@@ -6,7 +8,9 @@ const EQUIPMENT = [
   { key: 'heating', powerKey: 'heating_power', icon: 'mdi:radiator' },
 ];
 const AMBIENT_TEMPERATURE = 'ambient_temperature';
-const EDITOR_FIELDS = ['title', 'language', ...MEASUREMENTS, AMBIENT_TEMPERATURE, ...EQUIPMENT.flatMap(({ key, powerKey }) => [key, powerKey])];
+const HISTORY_FIELDS = ['show_history'];
+const HISTORY_BUCKETS = 72;
+const EDITOR_FIELDS = ['title', 'language', ...MEASUREMENTS, AMBIENT_TEMPERATURE, ...HISTORY_FIELDS, ...EQUIPMENT.flatMap(({ key, powerKey }) => [key, powerKey])];
 const QUALITY_LABELS = { en: 'Quality', de: 'Qualität', fr: 'Qualité', it: 'Qualità', es: 'Calidad' };
 
 
@@ -46,6 +50,7 @@ class PoolWaterQualityCard extends HTMLElement {
       language,
       ...Object.fromEntries(MEASUREMENTS.map((key) => [key, config[key] || entities[key]])),
       [AMBIENT_TEMPERATURE]: config[AMBIENT_TEMPERATURE] || entities[AMBIENT_TEMPERATURE],
+      show_history: config.show_history !== false,
       ...Object.fromEntries(EQUIPMENT.flatMap(({ key, powerKey }) => [
         [key, config[key] || entities[key]],
         [powerKey, config[powerKey] || entities[powerKey]],
@@ -58,6 +63,7 @@ class PoolWaterQualityCard extends HTMLElement {
         critical_ranges: config.grading?.critical_ranges || {},
       },
     };
+    this._loadHistory();
   }
 
   _t(key, values) {
@@ -70,6 +76,7 @@ class PoolWaterQualityCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    this._loadHistory();
     this.render();
   }
 
@@ -107,6 +114,25 @@ class PoolWaterQualityCard extends HTMLElement {
       .range-marker-offscale { width: auto; height: auto; border: 0; border-radius: 0; background: transparent; color: var(--warning-color); font-size: 1.35em; font-weight: 700; line-height: 1; }
       .range-label { display: block; margin-top: 2px; color: var(--secondary-text-color); font-size: 0.78em; text-align: right; }
       .ambient-context { color: var(--secondary-text-color); font-size: 0.78em; font-weight: 400; white-space: nowrap; }
+      .history-section { margin: 0 14px 10px; }
+      .history-heading { margin: 4px 0 5px; color: var(--primary-text-color); font-size: 0.86em; font-weight: 500; }
+      .history-chart { margin-top: 6px; }
+      .history-chart:first-of-type { margin-top: 0; }
+      .history-chart-label { display: flex; justify-content: space-between; margin-bottom: 2px; color: var(--secondary-text-color); font-size: 0.75em; }
+      .history-legend { display: flex; flex-wrap: wrap; gap: 8px; }
+      .history-legend-item { display: inline-flex; align-items: center; gap: 4px; }
+      .history-swatch { width: 14px; height: 0; border-top: 2px solid currentColor; }
+      .history-swatch.history-water { color: var(--primary-color); }
+      .history-swatch.history-ambient { color: var(--secondary-text-color); border-top-style: dashed; }
+      .history-swatch.history-ph { color: var(--info-color, var(--primary-color)); }
+      .history-swatch.history-chlorine { color: var(--warning-color); }
+      .history-chart svg { display: block; width: 100%; height: 58px; overflow: visible; }
+      .history-grid { stroke: var(--divider-color); stroke-width: 1; opacity: .7; }
+      .history-target { fill: var(--success-color); opacity: .14; }
+      .history-water { fill: none; stroke: var(--primary-color); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+      .history-ambient { fill: none; stroke: var(--secondary-text-color); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 3 2; }
+      .history-ph { fill: none; stroke: var(--info-color, var(--primary-color)); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+      .history-chlorine { fill: none; stroke: var(--warning-color); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
       .overall-guidance { margin: 0 14px 8px; font-size: 0.86em; line-height: 1.3; color: var(--secondary-text-color); padding: 5px 7px; border-left: 3px solid var(--warning-color); background: color-mix(in srgb, var(--warning-color) 10%, transparent); }
     `;
 
@@ -191,6 +217,11 @@ class PoolWaterQualityCard extends HTMLElement {
     card.appendChild(header);
     card.appendChild(content);
 
+    const history = this._createHistoryCharts();
+    if (history) {
+      card.appendChild(history);
+    }
+
     const overallGuidance = this._getOverallGuidance();
     if (overallGuidance) {
       const guidance = document.createElement('div');
@@ -256,6 +287,7 @@ class PoolWaterQualityCard extends HTMLElement {
         icon,
         color: unavailable ? 'var(--disabled-text-color)' : active ? 'var(--success-color)' : 'var(--secondary-text-color)',
         tooltip,
+        detailsEntity: this.config[key] || this.config[powerKey],
       }));
     });
     return chips;
@@ -276,7 +308,7 @@ class PoolWaterQualityCard extends HTMLElement {
     return `${watts.toFixed(1)} W`;
   }
 
-  _createEntityBadge({ id, label, value, icon, color, tooltip }) {
+  _createEntityBadge({ id, label, value, icon, color, tooltip, detailsEntity }) {
     const badge = document.createElement('hui-entity-badge');
     const now = new Date().toISOString();
     const state = {
@@ -304,9 +336,31 @@ class PoolWaterQualityCard extends HTMLElement {
       hold_action: { action: 'none' },
       double_tap_action: { action: 'none' },
     });
-    badge.title = tooltip;
-    badge.setAttribute('aria-label', tooltip);
+    const description = detailsEntity ? `${tooltip}. ${this._t('open_details')}` : tooltip;
+    badge.title = description;
+    badge.setAttribute('aria-label', description);
+    if (detailsEntity) {
+      badge.style.cursor = 'pointer';
+      badge.setAttribute('role', 'button');
+      badge.setAttribute('tabindex', '0');
+      const openDetails = () => this._openMoreInfo(detailsEntity);
+      badge.addEventListener('click', openDetails);
+      badge.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openDetails();
+        }
+      });
+    }
     return badge;
+  }
+
+  _openMoreInfo(entityId) {
+    this.dispatchEvent(new CustomEvent('hass-more-info', {
+      detail: { entityId },
+      bubbles: true,
+      composed: true,
+    }));
   }
 
   _getGradeColor(grade) {
@@ -395,6 +449,205 @@ class PoolWaterQualityCard extends HTMLElement {
     meter.appendChild(track);
     meter.appendChild(label);
     return meter;
+  }
+
+  _loadHistory() {
+    if (!this._hass || !this.config?.show_history || typeof this._hass.callApi !== 'function') {
+      return;
+    }
+    const entities = [this.config.temperature, this.config[AMBIENT_TEMPERATURE], this.config.ph, this.config.free_chlorine]
+      .filter(Boolean);
+    if (!entities.length) {
+      return;
+    }
+
+    const bucket = Math.floor(Date.now() / (15 * 60 * 1000));
+    const key = `${bucket}:${entities.join(',')}`;
+    if (this._historyKey === key || this._historyLoadingKey === key) {
+      return;
+    }
+    this._historyLoadingKey = key;
+    const end = new Date();
+    const start = new Date(end.getTime() - (24 * 60 * 60 * 1000));
+    const query = new URLSearchParams({
+      filter_entity_id: entities.join(','),
+      end_time: end.toISOString(),
+      minimal_response: '',
+      no_attributes: '',
+    });
+    const path = `history/period/${start.toISOString()}?${query}`;
+
+    this._hass.callApi('GET', path).then((result) => {
+      if (this._historyLoadingKey !== key) {
+        return;
+      }
+      this._historyKey = key;
+      this._historyWindow = { start: start.getTime(), end: end.getTime() };
+      this._historyData = Object.fromEntries(entities.map((entity, index) => [entity, result[index] || []]));
+      this._historyLoadingKey = undefined;
+      this.render();
+    }).catch(() => {
+      if (this._historyLoadingKey === key) {
+        // Avoid retrying on every state update when Recorder is disabled or
+        // the current user is not permitted to read history.
+        this._historyKey = key;
+        this._historyLoadingKey = undefined;
+      }
+    });
+  }
+
+  _createHistoryCharts() {
+    if (!this.config.show_history || !this._historyData || !this._historyWindow) {
+      return null;
+    }
+    const section = document.createElement('div');
+    section.className = 'history-section';
+    const heading = document.createElement('div');
+    heading.className = 'history-heading';
+    heading.textContent = this._t('history_24h');
+    section.appendChild(heading);
+
+    const temperatureSeries = [
+      { entity: this.config.temperature, className: 'history-water', label: this._t('temperature') },
+      { entity: this.config[AMBIENT_TEMPERATURE], className: 'history-ambient', label: this._t(AMBIENT_TEMPERATURE) },
+    ].map((series) => ({ ...series, points: this._getHistoryPoints(series.entity) }))
+      .filter((series) => series.points.length);
+    if (temperatureSeries.length) {
+      const values = temperatureSeries.flatMap((series) => series.points.map((point) => point.value));
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const padding = Math.max(1, (max - min) * 0.15);
+      const unit = this._getState(this.config.temperature)?.attributes?.unit_of_measurement
+        || this._getState(this.config[AMBIENT_TEMPERATURE])?.attributes?.unit_of_measurement
+        || '°C';
+      section.appendChild(this._createHistoryChart({
+        label: temperatureSeries.map((series) => series.label).join(' · '),
+        detail: unit,
+        series: temperatureSeries,
+        valueToY: (value) => 56 - (((value - (min - padding)) / ((max - min) + (padding * 2))) * 56),
+      }));
+    }
+
+    const qualitySeries = ['ph', 'free_chlorine'].map((key) => {
+      const range = this._getRange(key);
+      const midpoint = range ? (range.min + range.max) / 2 : null;
+      const halfSpan = range ? (range.max - range.min) / 2 : null;
+      return {
+        key,
+        className: key === 'ph' ? 'history-ph' : 'history-chlorine',
+        label: this._t(key),
+        points: this._getHistoryPoints(this.config[key]),
+        range,
+        midpoint,
+        halfSpan,
+      };
+    }).filter((series) => series.range && series.points.length);
+    if (qualitySeries.length) {
+      section.appendChild(this._createHistoryChart({
+        label: qualitySeries.map((series) => series.label).join(' · '),
+        detail: this._t('normalized_target'),
+        series: qualitySeries.map((series) => ({
+          ...series,
+          points: series.points.map((point) => ({
+            ...point,
+            normalized: (point.value - series.midpoint) / series.halfSpan,
+          })),
+        })),
+        target: true,
+        valueToY: (_, point) => Math.max(0, Math.min(56, 28 - (point.normalized * 5.6))),
+      }));
+    }
+    return section.children.length > 1 ? section : null;
+  }
+
+  _getHistoryPoints(entity) {
+    if (!entity) {
+      return [];
+    }
+    const readings = (this._historyData?.[entity] || []).map((state) => ({
+      time: new Date(state.last_changed || state.last_updated).getTime(),
+      value: this._normalizeValue(state.state),
+    })).filter((point) => Number.isFinite(point.time) && point.value !== null)
+      .sort((a, b) => a.time - b.time);
+    if (!readings.length) {
+      return [];
+    }
+
+    // Use the same number of evenly spaced points for every entity. A bucket
+    // mean smooths high-frequency sensors while the last known value carries
+    // sparse readings forward, yielding calm, directly comparable 24 h lines.
+    const { start, end } = this._historyWindow;
+    const bucketSize = (end - start) / HISTORY_BUCKETS;
+    let readingIndex = 0;
+    let lastValue = readings[0].value;
+    return Array.from({ length: HISTORY_BUCKETS + 1 }, (_, bucket) => {
+      const bucketEnd = start + (bucket * bucketSize);
+      const values = [];
+      while (readingIndex < readings.length && readings[readingIndex].time <= bucketEnd) {
+        lastValue = readings[readingIndex].value;
+        values.push(lastValue);
+        readingIndex += 1;
+      }
+      if (values.length) {
+        lastValue = values.reduce((sum, value) => sum + value, 0) / values.length;
+      }
+      return { time: bucketEnd, value: lastValue };
+    });
+  }
+
+  _createHistoryChart({ label, detail, series, target = false, valueToY }) {
+    const chart = document.createElement('div');
+    chart.className = 'history-chart';
+    const caption = document.createElement('div');
+    caption.className = 'history-chart-label';
+    const legend = document.createElement('span');
+    legend.className = 'history-legend';
+    series.forEach((item) => {
+      const legendItem = document.createElement('span');
+      legendItem.className = 'history-legend-item';
+      const swatch = document.createElement('span');
+      swatch.className = `history-swatch ${item.className}`;
+      const text = document.createElement('span');
+      text.textContent = item.label;
+      legendItem.append(swatch, text);
+      legend.appendChild(legendItem);
+    });
+    const detailLabel = document.createElement('span');
+    detailLabel.textContent = detail;
+    caption.append(legend, detailLabel);
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 240 56');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', `${label}, ${this._t('history_24h')}`);
+    if (target) {
+      const band = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      band.setAttribute('class', 'history-target');
+      band.setAttribute('x', '0');
+      band.setAttribute('y', '22.4');
+      band.setAttribute('width', '240');
+      band.setAttribute('height', '11.2');
+      svg.appendChild(band);
+    }
+    const midline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    midline.setAttribute('class', 'history-grid');
+    midline.setAttribute('x1', '0');
+    midline.setAttribute('x2', '240');
+    midline.setAttribute('y1', '28');
+    midline.setAttribute('y2', '28');
+    svg.appendChild(midline);
+    series.forEach((item) => {
+      const pathData = item.points.map((point, index) => {
+        const x = Math.max(0, Math.min(240, ((point.time - this._historyWindow.start) / (this._historyWindow.end - this._historyWindow.start)) * 240));
+        return `${index ? 'L' : 'M'}${x.toFixed(1)} ${valueToY(point.value, point).toFixed(1)}`;
+      }).join(' ');
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      line.setAttribute('class', item.className);
+      line.setAttribute('d', pathData);
+      svg.appendChild(line);
+    });
+    chart.append(caption, svg);
+    return chart;
   }
 
   _createAmbientContext() {
@@ -561,7 +814,8 @@ class PoolWaterQualityCardEditor extends HTMLElement {
       name,
       selector: name === 'title'
         ? { text: {} }
-        : name === 'language' ? { select: { options: LANGUAGE_OPTIONS } } : { entity: {} },
+        : name === 'language' ? { select: { options: LANGUAGE_OPTIONS } }
+          : name === 'show_history' ? { boolean: {} } : { entity: {} },
     }));
     form.computeLabel = (schema) => translate(this._config.language || 'en', schema.name);
     form.addEventListener('value-changed', (event) => {

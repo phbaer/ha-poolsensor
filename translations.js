@@ -6,11 +6,11 @@ export const EQUIPMENT_TRANSLATIONS = {
   es: { filter: 'Filtración', filter_power: 'Potencia del filtro', heating: 'Calefacción', heating_power: 'Potencia de calefacción', on: 'Encendido', off: 'Apagado' },
 };
 export const CONTEXT_TRANSLATIONS = {
-  en: { ambient_temperature: 'Ambient temperature', water_air_delta: 'Water − air' },
-  de: { ambient_temperature: 'Umgebungstemperatur', water_air_delta: 'Wasser − Luft' },
-  fr: { ambient_temperature: 'Température ambiante', water_air_delta: 'Eau − air' },
-  it: { ambient_temperature: 'Temperatura ambiente', water_air_delta: 'Acqua − aria' },
-  es: { ambient_temperature: 'Temperatura ambiente', water_air_delta: 'Agua − aire' },
+  en: { ambient_temperature: 'Ambient temperature', show_history: 'Show 24-hour trends', water_air_delta: 'Water − air', history_24h: 'Last 24 hours', normalized_target: 'Normalized to target', open_details: 'Open details' },
+  de: { ambient_temperature: 'Umgebungstemperatur', show_history: '24-Stunden-Trends anzeigen', water_air_delta: 'Wasser − Luft', history_24h: 'Letzte 24 Stunden', normalized_target: 'Auf Zielbereich normiert', open_details: 'Details öffnen' },
+  fr: { ambient_temperature: 'Température ambiante', show_history: 'Afficher les tendances sur 24 heures', water_air_delta: 'Eau − air', history_24h: 'Dernières 24 heures', normalized_target: 'Normalisé sur la cible', open_details: 'Ouvrir les détails' },
+  it: { ambient_temperature: 'Temperatura ambiente', show_history: 'Mostra tendenze delle ultime 24 ore', water_air_delta: 'Acqua − aria', history_24h: 'Ultime 24 ore', normalized_target: 'Normalizzato sul valore obiettivo', open_details: 'Apri dettagli' },
+  es: { ambient_temperature: 'Temperatura ambiente', show_history: 'Mostrar tendencias de 24 horas', water_air_delta: 'Agua − aire', history_24h: 'Últimas 24 horas', normalized_target: 'Normalizado al objetivo', open_details: 'Abrir detalles' },
 };
 export const TRANSLATIONS = {
   en: {

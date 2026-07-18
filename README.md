@@ -33,6 +33,7 @@ free_chlorine: sensor.pool_cl
 orp: sensor.pool_orp
 temperature: sensor.pool_temperature
 ambient_temperature: sensor.outdoor_temperature
+show_history: true
 salinity: sensor.pool_salinity
 tds: sensor.pool_tds
 ec: sensor.pool_ec
@@ -43,9 +44,11 @@ heating: switch.pool_heating
 heating_power: sensor.pool_heating_power
 ```
 
-The optional filter/heating chips use icons and color to show on/off state; `filter_power` and `heating_power` are normalized to one decimal place in watts. Equipment state does not affect the water-quality grade.
+The optional filter/heating badges use icons and color to show on/off state; `filter_power` and `heating_power` are normalized to one decimal place in watts. Click a badge to open the configured filter/heating entity’s standard Home Assistant details dialog. Equipment state does not affect the water-quality grade.
 
 `ambient_temperature` is optional. It is shown beside the water-temperature reading and, when water temperature is configured, includes the water–air temperature difference. It does not affect the water-quality grade.
+
+When `show_history` is enabled (the default), the card also requests the previous 24 hours from Home Assistant Recorder. It shows water and ambient temperatures together in °C, plus pH and free chlorine on a separate timeline normalized to their configured target ranges. The trend section is hidden automatically when Recorder history is unavailable. Disable it with `show_history: false`.
 
 ## Customization
 
