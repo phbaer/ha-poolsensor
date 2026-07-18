@@ -2,7 +2,7 @@ import { TRANSLATIONS, LANGUAGE_OPTIONS, translate } from './translations.js';
 
 const MEASUREMENTS = ['ph', 'free_chlorine', 'orp', 'temperature', 'salinity', 'tds', 'ec'];
 const EQUIPMENT = [
-  { key: 'filter', powerKey: 'filter_power', icon: 'mdi:filter' },
+  { key: 'filter', powerKey: 'filter_power', icon: 'mdi:water-filter' },
   { key: 'heating', powerKey: 'heating_power', icon: 'mdi:radiator' },
 ];
 const AMBIENT_TEMPERATURE = 'ambient_temperature';
@@ -100,7 +100,7 @@ class PoolWaterQualityCard extends HTMLElement {
       .status-ok { background: var(--success-color); }
       .status-warning { background: var(--warning-color); }
       .status-unknown { background: var(--disabled-text-color); }
-      hui-entity-badge { --ha-badge-icon-size: 18px; --ha-badge-font-size: 0.85em; cursor: help; }
+      hui-entity-badge { cursor: help; }
       .range-meter { grid-column: 1 / -1; display: block; }
       .range-track { position: relative; width: 100%; height: 6px; border-radius: 99px; background: linear-gradient(to right, color-mix(in srgb, var(--error-color) 46%, transparent) 0%, color-mix(in srgb, var(--error-color) 34%, var(--success-color)) var(--good-start), color-mix(in srgb, var(--success-color) 38%, transparent) 50%, color-mix(in srgb, var(--error-color) 34%, var(--success-color)) var(--good-end), color-mix(in srgb, var(--error-color) 46%, transparent) 100%); }
       .range-marker { position: absolute; top: 50%; left: var(--marker-position); width: 10px; height: 10px; border: 2px solid var(--card-background-color); border-radius: 50%; background: var(--primary-text-color); box-sizing: border-box; transform: translate(-50%, -50%); }

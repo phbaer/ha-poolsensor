@@ -1,0 +1,21 @@
+name: Validate frontend
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    # `docker` is Forgejo's standard runner label. The Node image also supplies
+    # the runtime required by the checkout action and the syntax checks below.
+    runs-on: docker
+    container:
+      image: node:24-bookworm
+    steps:
+      - name: Check out repository
+        uses: https://data.forgejo.org/actions/checkout@v6
+      - name: Check JavaScript syntax
+        run: |
+          node --check ha-poolsensor.js
+          node --check translations.js
