@@ -741,7 +741,12 @@ class PoolWaterQualityCard extends HTMLElement {
         height: 150,
         pxAlign: true,
         legend: { show: false },
-        cursor: { points: { show: false } },
+        cursor: {
+          points: { show: false },
+          // Snap the tooltip to the nearest time bucket anywhere in the plot,
+          // rather than requiring the pointer to be close to a series line.
+          hover: { prox: null },
+        },
         series: plotSeries,
         scales: { y: { range: yRange } },
         axes: [
