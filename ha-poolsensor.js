@@ -128,11 +128,13 @@ class PoolWaterQualityCard extends HTMLElement {
     const style = document.createElement('style');
     style.textContent = `
       .card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px 4px; }
-      .card-title { color: var(--primary-text-color); font-size: 1.1em; font-weight: 500; }
-      .header-actions, .equipment-badges { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
+      .card-title { flex: 1 1 auto; min-width: 0; color: var(--primary-text-color); font-size: 1.1em; font-weight: 500; }
+      .header-actions { display: flex; flex: 0 1 auto; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
+      .equipment-badges { display: flex; flex: 0 0 auto; align-items: center; flex-wrap: nowrap; gap: 6px; }
       .pool-values { display: grid; gap: 0; padding: 0 14px 8px; }
-      .pool-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4px 8px; padding: 5px 0; border-bottom: 1px solid var(--divider-color); }
+      .pool-row { display: grid; width: 100%; grid-template-columns: auto 1fr auto; align-items: center; gap: 4px 8px; padding: 5px 0; border: 0; border-bottom: 1px solid var(--divider-color); background: transparent; color: inherit; font: inherit; text-align: inherit; cursor: pointer; }
       .pool-row:last-child { border-bottom: none; }
+      .pool-row:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
       .label { font-weight: 500; color: var(--primary-text-color); }
       .value { text-align: right; font-variant-numeric: tabular-nums; }
       .status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-left: 8px; cursor: help; }
@@ -155,7 +157,10 @@ class PoolWaterQualityCard extends HTMLElement {
       @media (max-width: 480px) {
         .card-header { align-items: flex-start; gap: 8px; padding: 10px 12px 4px; }
         .card-title { min-width: 0; font-size: 1em; overflow-wrap: anywhere; }
-        .header-actions { max-width: 55%; gap: 4px; }
+        .header-actions { gap: 4px; }
+        .equipment-badges { gap: 4px; }
+        .equipment-badges .status-chip { min-width: 28px; padding-inline: 6px; }
+        .equipment-badges .status-chip-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
         .pool-values { padding: 0 12px 8px; }
         .pool-row { grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 6px; }
         .label, .value { min-width: 0; overflow-wrap: anywhere; }
@@ -178,6 +183,16 @@ class PoolWaterQualityCard extends HTMLElement {
 
       const row = document.createElement('div');
       row.className = 'pool-row';
+      row.setAttribute('role', 'button');
+      row.setAttribute('tabindex', '0');
+      const openDetails = () => this._openMoreInfo(field.entity);
+      row.addEventListener('click', openDetails);
+      row.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openDetails();
+        }
+      });
 
       const label = document.createElement('span');
       label.className = 'label';
@@ -204,6 +219,7 @@ class PoolWaterQualityCard extends HTMLElement {
       }
       statusDot.title = this._getStatusTooltip(field.key, value, range, status);
       statusDot.setAttribute('aria-label', statusDot.title);
+      row.setAttribute('aria-label', `${field.label}: ${formattedValue}. ${this._t('open_details')}`);
       row.appendChild(label);
       row.appendChild(valueWrap);
       row.appendChild(statusDot);
