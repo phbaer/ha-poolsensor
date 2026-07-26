@@ -43,4 +43,7 @@ jobs:
           release-dir: release-assets
           tag: ${{ forge.ref_name }}
           title: ${{ forge.ref_name }}
+          # A tag push can be redelivered or the release job can be rerun.
+          # Replace the release asset in that case instead of failing on 409.
+          override: true
           token: ${{ forge.token }}
