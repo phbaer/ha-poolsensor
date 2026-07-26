@@ -142,11 +142,11 @@ class PoolWaterQualityCard extends HTMLElement {
       .status-ok { background: var(--success-color); }
       .status-warning { background: var(--warning-color); }
       .status-unknown { background: var(--disabled-text-color); }
-      .status-chip { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 3px 7px; border: 1px solid var(--divider-color); border-radius: 14px; background: var(--card-background-color); color: var(--primary-text-color); font: inherit; font-size: .8em; line-height: 1.15; }
+      .status-chip { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; padding: 2px 6px; border: 1px solid var(--divider-color); border-radius: 12px; background: var(--card-background-color); color: var(--primary-text-color); font-family: var(--ha-font-family-body, inherit); font-size: var(--ha-font-size-xs, .75rem); font-weight: var(--ha-font-weight-normal, 400); line-height: 1.2; }
       button.status-chip { cursor: pointer; }
       button.status-chip:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
       .status-chip-label { color: var(--secondary-text-color); }
-      .status-chip-value { color: var(--chip-color, var(--primary-text-color)); font-variant-numeric: tabular-nums; font-weight: 600; }
+      .status-chip-value { color: var(--chip-color, var(--primary-text-color)); font-variant-numeric: tabular-nums; font-weight: var(--ha-font-weight-medium, 500); }
       .range-meter { grid-column: 1 / -1; display: block; }
       .range-track { position: relative; width: 100%; height: 6px; border-radius: 99px; background: linear-gradient(to right, color-mix(in srgb, var(--error-color) 46%, transparent) 0%, color-mix(in srgb, var(--error-color) 34%, var(--success-color)) var(--good-start), color-mix(in srgb, var(--success-color) 38%, transparent) var(--good-middle), color-mix(in srgb, var(--error-color) 34%, var(--success-color)) var(--good-end), color-mix(in srgb, var(--error-color) 46%, transparent) 100%); }
       .range-marker { position: absolute; top: 50%; left: var(--marker-position); width: 10px; height: 10px; border: 2px solid var(--card-background-color); border-radius: 50%; background: var(--primary-text-color); box-sizing: border-box; transform: translate(-50%, -50%); }
@@ -159,7 +159,7 @@ class PoolWaterQualityCard extends HTMLElement {
         .card-title { min-width: 0; font-size: 1em; overflow-wrap: anywhere; }
         .header-actions { gap: 4px; }
         .equipment-badges { gap: 4px; }
-        .equipment-badges .status-chip { min-width: 28px; padding-inline: 6px; }
+        .equipment-badges .status-chip { min-width: 24px; padding-inline: 5px; }
         .equipment-badges .status-chip-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
         .pool-values { padding: 0 12px 8px; }
         .pool-row { grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 6px; }
