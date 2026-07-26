@@ -7,11 +7,11 @@ export const EQUIPMENT_TRANSLATIONS = {
   es: { filter: 'Filtración', filter_power: 'Potencia del filtro', heating: 'Calefacción', heating_power: 'Potencia de calefacción', on: 'Encendido', off: 'Apagado' },
 };
 export const CONTEXT_TRANSLATIONS = {
-  en: { ambient_temperature: 'Ambient temperature', show_history: 'Show 24-hour trends', water_air_delta: 'Water − air', history_24h: 'Last 24 hours', normalized_target: 'Normalized to target', open_details: 'Open details' },
-  de: { ambient_temperature: 'Umgebungstemperatur', show_history: '24-Stunden-Trends anzeigen', water_air_delta: 'Wasser − Luft', history_24h: 'Letzte 24 Stunden', normalized_target: 'Auf Zielbereich normiert', open_details: 'Details öffnen' },
-  fr: { ambient_temperature: 'Température ambiante', show_history: 'Afficher les tendances sur 24 heures', water_air_delta: 'Eau − air', history_24h: 'Dernières 24 heures', normalized_target: 'Normalisé sur la cible', open_details: 'Ouvrir les détails' },
-  it: { ambient_temperature: 'Temperatura ambiente', show_history: 'Mostra tendenze delle ultime 24 ore', water_air_delta: 'Acqua − aria', history_24h: 'Ultime 24 ore', normalized_target: 'Normalizzato sul valore obiettivo', open_details: 'Apri dettagli' },
-  es: { ambient_temperature: 'Temperatura ambiente', show_history: 'Mostrar tendencias de 24 horas', water_air_delta: 'Agua − aire', history_24h: 'Últimas 24 horas', normalized_target: 'Normalizado al objetivo', open_details: 'Abrir detalles' },
+  en: { ambient_temperature: 'Ambient temperature', water_air_delta: 'Water − air', open_details: 'Open details' },
+  de: { ambient_temperature: 'Umgebungstemperatur', water_air_delta: 'Wasser − Luft', open_details: 'Details öffnen' },
+  fr: { ambient_temperature: 'Température ambiante', water_air_delta: 'Eau − air', open_details: 'Ouvrir les détails' },
+  it: { ambient_temperature: 'Temperatura ambiente', water_air_delta: 'Acqua − aria', open_details: 'Apri dettagli' },
+  es: { ambient_temperature: 'Temperatura ambiente', water_air_delta: 'Agua − aire', open_details: 'Abrir detalles' },
 };
 export const TRANSLATIONS = {
   en: {
@@ -30,10 +30,6 @@ export const TRANSLATIONS = {
     card_title: 'Calidad del agua de la piscina', language: 'Idioma', title: 'Título', ph: 'pH', free_chlorine: 'Cloro libre', orp: 'ORP', temperature: 'Temperatura', salinity: 'Salinidad', tds: 'TDS', ec: 'Conductividad', target: 'Rango objetivo', recommendation: 'Siguiente paso recomendado', unknown: '{label}: no hay lectura válida ni rango configurado', below: '{label}: por debajo del objetivo ({range})', above: '{label}: por encima del objetivo ({range})', within: '{label}: dentro del objetivo ({range})', grade_missing: 'configure pH y cloro libre para calcular la calificación', grade_waiting: 'esperando lecturas válidas de pH y cloro libre', grade_chlorine_low: 'el cloro libre está por debajo del mínimo configurado', grade_critical: '{label} está fuera del rango crítico', grade_multiple: 'varias lecturas principales requieren atención', grade_one: 'una lectura principal requiere atención', grade_support: 'las lecturas principales están bien; una lectura secundaria requiere atención', grade_all: 'todas las lecturas configuradas con objetivo están bien', ph_low: 'El pH es bajo. Confírmelo con una prueba de gotas y use un elevador de pH según su etiqueta. Vuelva a medir.', ph_high: 'El pH es alto. Confírmelo con una prueba de gotas y use un reductor de pH según su etiqueta. Vuelva a medir.', chlorine_low: 'El cloro libre es bajo. Confírmelo con una prueba DPD y súbalo con el clorador o un producto de cloro adecuado. Recircule y vuelva a medir.', chlorine_high: 'El cloro libre es alto. Pause la cloración y vuelva a medir antes de nadar; siga la etiqueta y las normas locales.', orp_low: 'El ORP es bajo. Compruebe pH y cloro libre con una prueba fiable; no dosifique solo según el ORP.', orp_high: 'El ORP es alto. Compruebe pH y cloro libre antes de cambiar la cloración.', temperature_low: 'La temperatura está por debajo del confort configurado. Ajuste la calefacción si está disponible.', temperature_high: 'La temperatura está por encima del confort configurado. Ajuste la calefacción o la cubierta.', salinity_low: 'La salinidad está por debajo del objetivo. Siga el manual del clorador antes de añadir sal.', salinity_high: 'La salinidad está por encima del objetivo. Siga el manual del clorador; puede requerirse dilución.', tds_low: 'Los TDS están fuera del objetivo. Úselos como tendencia y confirme el equilibrio con una prueba adecuada.', tds_high: 'Los TDS están fuera del objetivo. Úselos como tendencia y confirme el equilibrio con una prueba adecuada.', ec_low: 'La conductividad está fuera del objetivo. Compruebe la calibración de la sonda antes de ajustar productos.', ec_high: 'La conductividad está fuera del objetivo. Compruebe la calibración de la sonda antes de ajustar productos.', also_ph: ' Corrija también el pH tras confirmar ambas lecturas.',
   },
 };
-
-export const LANGUAGE_OPTIONS = [
-  ['en', 'English'], ['de', 'Deutsch'], ['fr', 'Français'], ['it', 'Italiano'], ['es', 'Español'],
-].map(([value, label]) => ({ value, label }));
 
 export const translate = (language, key, values = {}) => {
   const text = TRANSLATIONS[language]?.[key]
