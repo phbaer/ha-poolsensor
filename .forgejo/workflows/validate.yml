@@ -14,7 +14,7 @@ jobs:
       image: node:24-bookworm
     steps:
       - name: Check out repository
-        uses: https://data.forgejo.org/actions/checkout@v6
+        uses: https://data.forgejo.org/actions/checkout@v7
       - name: Install build dependencies
         run: npm ci
       - name: Build and verify release asset
@@ -30,7 +30,7 @@ jobs:
       image: node:24-bookworm
     steps:
       - name: Check out release tag
-        uses: https://data.forgejo.org/actions/checkout@v6
+        uses: https://data.forgejo.org/actions/checkout@v7
       - name: Build release asset
         run: |
           npm ci
